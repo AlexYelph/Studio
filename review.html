@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Студия · ревью итерации 1</title>
+<style>
+:root{
+  --bg:#0b0c0e; --s1:#15161a; --s2:#1d1f24; --s3:#26282f;
+  --bd:rgba(255,255,255,.09); --bd2:rgba(255,255,255,.16);
+  --t1:#f3f3f5; --t2:#a6a7ae; --t3:#71727a;
+  --ac:#0a84ff; --ok:#30d158; --wa:#ff9f0a; --er:#ff453a;
+  --r:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--t1);
+  font:16px/1.42 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+a{color:var(--ac);text-decoration:none}
+
+/* ---------- шапка ---------- */
+header{
+  position:sticky;top:0;z-index:10;
+  background:rgba(11,12,14,.86);backdrop-filter:saturate(180%) blur(18px);
+  -webkit-backdrop-filter:saturate(180%) blur(18px);
+  border-bottom:1px solid var(--bd);
+  padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
+}
+.hrow{display:flex;align-items:baseline;gap:8px}
+.hrow b{font-size:19px;letter-spacing:-.2px}
+.hrow .sub{font-size:13px;color:var(--t3)}
+.hrow a{margin-left:auto;font-size:14px;font-weight:600;background:var(--ac);color:#fff;padding:7px 12px;border-radius:999px}
+.bar{height:5px;border-radius:99px;background:var(--s3);margin:11px 0 9px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ac),#64d2ff);border-radius:99px;transition:width .25s ease}
+.mrow{display:flex;align-items:center;gap:10px}
+.mrow .cnt{font-size:13.5px;color:var(--t2);font-variant-numeric:tabular-nums}
+.mrow button{
+  margin-left:auto;font:600 14px/1 inherit;color:var(--t1);
+  background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:9px 13px;
+}
+.mrow button:active{transform:scale(.97)}
+.chips{display:flex;gap:7px;margin-top:10px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto;font:500 13.5px/1 inherit;color:var(--t2);
+  background:var(--s1);border:1px solid var(--bd);border-radius:999px;padding:8px 13px;
+}
+.chip.on{background:#fff;color:#000;border-color:#fff}
+
+/* ---------- список ---------- */
+main{padding:14px 16px 30px;max-width:720px;margin:0 auto}
+.hint{
+  display:flex;gap:10px;background:var(--s1);border:1px solid var(--bd);
+  border-radius:var(--r);padding:13px 14px;margin-bottom:16px;font-size:14px;color:var(--t2);
+}
+.hint b{color:var(--t1)}
+.hint code{font-size:13px;color:#64d2ff;word-break:break-all}
+
+.item{
+  background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);
+  margin-bottom:11px;overflow:hidden;transition:border-color .15s,background .15s;
+}
+.item.done{border-color:rgba(48,209,88,.42);background:rgba(48,209,88,.055)}
+.item.hide{display:none}
+.head{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:14px 14px 12px;cursor:pointer;user-select:none;
+}
+.box{
+  flex:0 0 26px;width:26px;height:26px;margin-top:1px;border-radius:8px;
+  border:1.5px solid var(--bd2);display:flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s;
+}
+.box svg{width:15px;height:15px;opacity:0;transform:scale(.6);transition:.15s}
+.item.done .box{background:var(--ok);border-color:var(--ok)}
+.item.done .box svg{opacity:1;transform:scale(1)}
+.htxt{flex:1;min-width:0}
+.num{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--t3);letter-spacing:.4px}
+.htxt h3{margin:5px 0 0;font-size:16px;line-height:1.3;letter-spacing:-.1px}
+.tags{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.tag{font:600 11px/1 inherit;padding:5px 8px;border-radius:6px;letter-spacing:.2px}
+.p1{background:rgba(255,69,58,.16);color:#ff8f87}
+.p2{background:rgba(255,159,10,.15);color:#ffbf5e}
+.ok{background:rgba(48,209,88,.14);color:#7ee2a0}
+.unk{background:rgba(255,255,255,.08);color:var(--t2)}
+
+.body{padding:0 14px 14px;display:none}
+.item.open .body{display:block}
+.body p{margin:0 0 10px;color:var(--t2);font-size:15px}
+.body p b{color:var(--t1);font-weight:600}
+.test{background:var(--s2);border-radius:12px;padding:11px 13px;margin-top:4px}
+.test h4{margin:0 0 7px;font:600 12.5px/1 inherit;color:var(--t3);letter-spacing:.5px;text-transform:uppercase}
+.test ol{margin:0;padding-left:18px;color:var(--t1);font-size:14.5px}
+.test ol li{margin-bottom:5px}
+.test ol li:last-child{margin-bottom:0}
+.ref{margin-top:9px;font-size:13.5px;color:var(--t3)}
+.ref b{color:var(--t2);font-weight:600}
+
+/* мини-макеты */
+.mocks{display:flex;gap:10px;margin:11px 0 3px}
+.mock{flex:1;border-radius:12px;padding:10px;font-size:11.5px;line-height:1.3;border:1px solid var(--bd)}
+.mock .cap{font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--t3);margin-bottom:7px}
+.mock.dk{background:#0d0e10;color:#f2f2f4}
+.mock.lt{background:#faf9f7;color:#1d1d1f;border-color:#e2ded6}
+.mbar{height:9px;border-radius:5px;background:#3a3c42;margin-bottom:7px;opacity:.9}
+.mock.lt .mbar{background:#d9d5cc}
+.mline{height:7px;border-radius:4px;background:#2a2c32;margin:5px 0}
+.mock.lt .mline{background:#e8e4dc}
+.mline.s{width:62%}
+
+footer{padding:0 16px calc(26px + env(safe-area-inset-bottom));color:var(--t3);font-size:13px;max-width:720px;margin:0 auto}
+footer .btn{
+  display:block;width:100%;margin:6px 0 14px;padding:15px;border-radius:14px;border:1px solid var(--bd2);
+  background:var(--s2);color:var(--t1);font:600 16px/1 inherit;text-align:center;
+}
+.toast{
+  position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,20px);
+  background:#fff;color:#000;font:600 14px/1 inherit;padding:13px 18px;border-radius:12px;
+  opacity:0;pointer-events:none;transition:.22s;z-index:50;max-width:88vw;text-align:center;
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <b>Студия</b><span class="sub">ревью · итерация 1</span>
+    <a href="/">Открыть →</a>
+  </div>
+  <div class="bar"><i id="pg"></i></div>
+  <div class="mrow">
+    <span class="cnt" id="cnt">0 из 0</span>
+    <button id="copy">Копировать отчёт</button>
+  </div>
+  <div class="chips">
+    <button class="chip on" data-f="all">Все</button>
+    <button class="chip" data-f="todo">Не отмечено</button>
+    <button class="chip" data-f="p1">Сначала главное</button>
+    <button class="chip" data-f="done">Отмечено</button>
+  </div>
+</header>
+
+<main>
+  <div class="hint">
+    <div>
+      <b>Как это работает.</b> Отмечай галочками то, что делаем в этой итерации.
+      Кнопка «Копировать отчёт» соберёт список — вставь его мне в чат.
+      <br><br>Адрес: <code id="addr"></code>
+    </div>
+  </div>
+  <div id="list"></div>
+</main>
+
+<footer>
+  <button class="btn" id="reset">Сбросить все галочки</button>
+  <div>Итерация 1 · предложения по приложению «Студия». Ничего ещё не внедрено — это список на согласование.</div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const P1='p1', P2='p2';
+const ITEMS=[
+{id:'pwa',p:1,title:'Запуск с экрана «Домой» (PWA)',state:'нет в коде',
+ sum:'Добавить manifest, иконку и meta-теги apple-mobile-web-app. Приложение ставится на экран «Домой» и открывается на весь экран, без адресной строки Safari.',
+ why:'Сейчас это вкладка Safari: сверху адресная строка, при переключении на другое приложение вкладка иногда перезагружается и сбрасывает экран. С иконки на «Домой» — как обычное приложение, состояние живёт дольше.',
+ test:['Открыть приложение на iPhone','Поделиться → «На экран Домой»','Запустить с иконки','Адресной строки нет, иконка своя, запуск на весь экран'],
+ mock:'pwa',
+ ref:'Референс: любое приложение с «Домой»-иконкой — как «Заметки» или «Календарь»: полноэкранно, без браузерных панелей.'},
+
+{id:'offline',p:1,title:'Работа без интернета',state:'нет в коде',
+ sum:'Service worker: приложение и шрифты кэшируются, при потере сети открывается и работает, данные — из локального хранилища.',
+ why:'На объекте, в подвале, в новостройке без Wi-Fi сейчас белый экран. Смета должна открываться всегда.',
+ test:['Открыть приложение, полистать','Включить авиарежим','Закрыть и открыть приложение снова','Открывается, объекты и смета на месте']},
+
+{id:'export',p:1,title:'Скачать все данные в файл',state:'нет в коде',
+ sum:'Кнопка «Скачать всё»: один .json со всеми объектами, помещениями и ответами. Через «Поделиться» → Файлы / AirDrop.',
+ why:'Данные сейчас только в localStorage Safari. Очистка истории или «освободить место» — и всё пропало. Файл — страховка и способ переезда.',
+ test:['Создать 1–2 объекта','Настройки → «Скачать всё»','Сохранить в Файлы','Файл есть, размер не нулевой']},
+
+{id:'import',p:1,title:'Восстановление из файла',state:'нет в коде',
+ sum:'Обратная операция: выбрать .json, проверить, что внутри (сколько объектов), и залить обратно. С заменой или добавлением.',
+ why:'Без импорта экспорт бесполезен: файл есть, а вернуть нечем.',
+ test:['Экспортировать данные','Удалить все объекты','Импортировать файл','Объекты вернулись с теми же суммами']},
+
+{id:'transfer',p:1,title:'Перенос iPhone ↔ Mac',state:'нужно проверить',
+ sum:'Отдельный экран «Перенос данных» с понятным сценарием: экспорт на телефоне → AirDrop → импорт в браузере на Mac.',
+ why:'Сейчас у каждого устройства своя копия. Чтобы продолжить смету на большом экране, данных не хватает.',
+ test:['iPhone: экспорт в файл','AirDrop на Mac','Mac: импорт в браузере','Тот же объект, те же суммы']},
+
+{id:'light',p:1,title:'Светлая тема',state:'только тёмная',
+ sum:'Переключатель: Авто / Тёмная / Светлая. «Авто» — по системной настройке iPhone.',
+ why:'На солнце тёмный экран бликует и читается плохо. На объекте это частая ситуация.',
+ test:['Настройки → Оформление → Светлая','Проверить на улице','Нет нечитаемых подписей и белых пятен'],
+ mock:'light',
+ ref:'Референс: контраст как в «Заметках» при светлой теме — фон #faf9f7, текст #1d1d1f, акцент синий.'},
+
+{id:'safe',p:1,title:'Safe-area и крупные кнопки',state:'надо проверить',
+ sum:'Аудит тап-зон: всё, что нажимается, — не меньше 44×44; отступы под «чёлку» и полоску внизу; шторки не уезжают под клавиатуру.',
+ why:'На iPhone мелкие элементы промахиваются, а нижние кнопки иногда перекрыты полоской «Домой».',
+ test:['Открыть любой экран','Пролистать до низа','Нажать нижние кнопки','Ничего не перекрыто, попадание с первого раза']},
+
+{id:'kbd',p:1,title:'Клавиатура и зум',state:'надо проверить',
+ sum:'Для числовых полей — inputmode="decimal" и шрифт ≥16px, чтобы Safari не приближал страницу при фокусе.',
+ why:'Когда Safari зумится на поле ввода, экран прыгает и приходится отщипывать обратно. Мелочь, которая бесит каждый раз.',
+ test:['Тапнуть в поле «площадь»','Открывается цифровая клавиатура','Страница не увеличилась']},
+
+{id:'resume',p:2,title:'«Продолжить с того же места»',state:'нет в коде',
+ sum:'На старте — блок «Последний объект» с кнопкой «Продолжить»: сразу в тот экран, где остановился.',
+ why:'Сейчас, чтобы вернуться к работе, надо пройти: Объекты → найти → открыть → нужный раздел.',
+ test:['Открыть объект, зайти в смету','Закрыть приложение','Открыть снова','Сверху последний объект, один тап — и там же']},
+
+{id:'objsearch',p:2,title:'Поиск и сортировка объектов',state:'надо проверить',
+ sum:'Поиск по имени/адресу, сортировка: свежие, по сумме, по статусу; фильтр «в работе / закрытые».',
+ why:'Когда объектов станет 30+, список превращается в ленту, где ничего не найти.',
+ test:['Создать 5+ объектов','Ввести часть адреса в поиск','Остались только совпадения']},
+
+{id:'dup',p:2,title:'Дублировать объект',state:'нет в коде',
+ sum:'Копия объекта со всеми помещениями и ответами, но с новым именем и чистыми датами.',
+ why:'Типовые квартиры: 80% ответов совпадают. Сейчас каждый раз с нуля.',
+ test:['Открыть объект → «Дублировать»','Изменить адрес','Смета совпадает, дата новая']},
+
+{id:'checks',p:2,title:'Проверка объёмов',state:'надо проверить',
+ sum:'Мягкие предупреждения: нулевой объём у выбранной работы, объём больше площади пола в 3 раза, пустое помещение.',
+ why:'Опечатка в 10 раз дороже обходится: смета уходит клиенту с лишним нулём.',
+ test:['Ввести объём 9999 вместо 99','Появляется предупреждение','Можно продолжить, но с пометкой']},
+
+{id:'progress',p:2,title:'Прогресс заполнения в списке',state:'частично есть',
+ sum:'На карточке объекта в списке: «осталось 12 из 87», полоска заполнения.',
+ why:'Видно, какие объекты доделаны, а какие брошены, не открывая каждый.',
+ test:['Список объектов','У недоделанного — «осталось N»','У готового — «готово»']},
+
+{id:'notes',p:2,title:'Минимальные суммы и коэффициенты',state:'надо проверить',
+ sum:'Применить примечания из прайса: минимальная смета 200 000 ₽, коэффициенты за малые объёмы (1,25 / 1,75), диагональ 1,3.',
+ why:'В прайсе эти правила есть текстом, но применяются ли автоматически — не видно. Если нет, смета занижается.',
+ test:['Собрать смету на 100 000 ₽','Появляется строка «минимальная стоимость»','Итог 200 000 ₽']},
+
+{id:'print',p:2,title:'Печатная версия A4',state:'только PDF',
+ sum:'Кнопка «Печать» с print-CSS: чистый лист A4, шапка, таблица работ, итог — без фона и кнопок.',
+ why:'PDF генерируется своим кодом и ломается на редких шрифтах. Печать через системный диалог надёжнее и даёт «Сохранить в Файлы».',
+ test:['Смета → Печать','В превью — таблица без обрезанных строк','Сохранить в Файлы → открыть PDF']},
+
+{id:'quickvol',p:2,title:'Быстрый ввод объёма',state:'надо проверить',
+ sum:'На карточке: крупные «−» / «+» и тап по числу для ввода с клавиатуры.',
+ why:'Набирать «12,5» на ходу неудобно: мелкое поле, зум, промахи.',
+ test:['Открыть работу','Нажать «+» три раза','Значение выросло, поле не зумится']},
+
+{id:'undel',p:2,title:'Отмена удаления',state:'надо проверить',
+ sum:'Удаление с «Отменить» в тосте на 5 секунд, вместо подтверждения в диалоге.',
+ why:'Диалог «Вы уверены?» раздражает, а случайное удаление без отмены — больно.',
+ test:['Удалить объект','Внизу «Отменить»','Нажать — объект вернулся']},
+
+{id:'selftest',p:2,title:'Экран «Проверка перед сдачей»',state:'нет в коде',
+ sum:'Внутренняя страничка: версия, сколько объектов, свободное место хранилища, кнопка «прогнать мини-тест» (создать → посчитать → удалить).',
+ why:'Когда что-то странно себя ведёт на телефоне, нужен быстрый способ понять, дело в данных или в коде.',
+ test:['Открыть «Проверка»','Нажать «Прогнать»','Все пункты зелёные']}
+];
+
+const KEY='studio_review_1';
+const $=(s,r=document)=>r.querySelector(s);
+const list=$('#list');
+let done=new Set(JSON.parse(localStorage.getItem(KEY)||'[]'));
+let filter='all';
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function mocks(kind){
+  if(kind==='pwa')return `<div class="mocks">
+    <div class="mock dk"><div class="cap">Сейчас: вкладка</div><div class="mbar"></div><div class="mline"></div><div class="mline s"></div></div>
+    <div class="mock dk"><div class="cap">С иконки</div><div class="mline"></div><div class="mline"></div><div class="mline s"></div></div>
+  </div>`;
+  if(kind==='light')return `<div class="mocks">
+    <div class="mock dk"><div class="cap">Тёмная</div><div class="mline"></div><div class="mline s"></div></div>
+    <div class="mock lt"><div class="cap">Светлая</div><div class="mline"></div><div class="mline s"></div></div>
+  </div>`;
+  return '';
+}
+
+function render(){
+  list.innerHTML=ITEMS.map(it=>{
+    const isDone=done.has(it.id);
+    return `<div class="item${isDone?' done':''}" data-id="${it.id}" data-p="${it.p}">
+      <div class="head">
+        <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg></div>
+        <div class="htxt">
+          <span class="num">${String(ITEMS.findIndex(x=>x.id===it.id)+1).padStart(2,'0')}</span>
+          <h3>${esc(it.title)}</h3>
+          <div class="tags">
+            <span class="tag ${it.p===1?'p1':'p2'}">${it.p===1?'Сначала':'Потом'}</span>
+            <span class="tag ${it.state==='нет в коде'?'unk':(it.state==='только тёмная'?'unk':'unk')}">${esc(it.state)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <p>${esc(it.sum)}</p>
+        <p><b>Зачем.</b> ${esc(it.why)}</p>
+        ${mocks(it.mock)}
+        <div class="test">
+          <h4>Как проверить на iPhone</h4>
+          <ol>${it.test.map(t=>`<li>${esc(t)}</li>`).join('')}</ol>
+        </div>
+        ${it.ref?`<div class="ref"><b>Референс.</b> ${esc(it.ref)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  applyFilter();
+  sync();
+}
+
+function applyFilter(){
+  list.querySelectorAll('.item').forEach(el=>{
+    const id=el.dataset.id, p=el.dataset.p, isDone=done.has(id);
+    let show=true;
+    if(filter==='todo')show=!isDone;
+    if(filter==='done')show=isDone;
+    if(filter==='p1')show=p==='1';
+    el.classList.toggle('hide',!show);
+  });
+}
+
+function sync(){
+  const n=done.size, t=ITEMS.length;
+  $('#cnt').textContent=`${n} из ${t}`;
+  $('#pg').style.width=(n/t*100)+'%';
+  localStorage.setItem(KEY,JSON.stringify([...done]));
+}
+
+list.addEventListener('click',e=>{
+  const head=e.target.closest('.head');
+  const item=e.target.closest('.item');
+  if(!item)return;
+  if(head&&!e.target.closest('.box')&&!e.target.closest('.body')){
+    // тап по шапке: сначала раскрыть, галочка — только по квадратику
+    item.classList.toggle('open');
+    return;
+  }
+  if(head&&e.target.closest('.box')){
+    const id=item.dataset.id;
+    done.has(id)?done.delete(id):done.add(id);
+    item.classList.toggle('done',done.has(id));
+    sync();applyFilter();
+  }
+});
+
+// отдельная кнопка-галочка крупнее: тап по всей шапке при уже отмеченном снимает
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');filter=c.dataset.f;applyFilter();
+}));
+
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),1800)}
+
+$('#copy').addEventListener('click',async()=>{
+  const lines=ITEMS.map((it,i)=>{
+    const mark=done.has(it.id)?'✅':'⬜️';
+    return `${mark} ${String(i+1).padStart(2,'0')}. ${it.title}${done.has(it.id)?'':' — предлагаю'}`;
+  });
+  const text=`Ревью «Студия», итерация 1. Отмечено ${done.size} из ${ITEMS.length}.\n\n`+lines.join('\n');
+  try{await navigator.clipboard.writeText(text);toast('Отчёт скопирован — вставь в чат')}
+  catch(e){
+    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');toast('Отчёт скопирован');}catch(_){toast('Не удалось скопировать')}
+    ta.remove();
+  }
+});
+
+$('#reset').addEventListener('click',()=>{
+  if(!confirm('Снять все галочки?'))return;
+  done=new Set();localStorage.removeItem(KEY);render();toast('Сброшено');
+});
+
+$('#addr').textContent=location.href.replace(/review\.html$/,'');
+render();
+</script>
+</body>
+</html>
