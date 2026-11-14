@@ -1,4 +1,4 @@
-/* Студия — дополнения: тема, печать, самопроверка, дубликат, отмена, поиск по свайпу.
+/* Студия — дополнения: тема, печать, самопроверка, дубликат, отмена, поиск по свайпу, PDF дизайн-проектов.
    Подключается после storage.js и ничего в нём не ломает. */
 (function () {
   'use strict';
@@ -435,6 +435,433 @@
     try { U.R(); } catch (e) {}
   }
 
+  /* ================= дизайн-проект: PDF и этапы ================= */
+  var STG = [['meas', 'Обмеры'], ['conc', 'Концепция'], ['plan', 'Планировочные решения'], ['vis', 'Визуализации'],
+    ['work', 'Рабочие чертежи'], ['spec', 'Ведомости и спецификации'], ['comp', 'Комплектация'], ['other', 'Прочее']];
+  var DS = { q: null, busy: false, sel: [], selOn: false, last: '', lib: null };
+
+  function stgAll() { var c = (window.PF && PF.stg) || []; return STG.concat(c); }
+  function stgKnown(k) { return !!k && stgAll().some(function (s) { return s[0] === k; }); }
+  function stgName(k) {
+    if (!k) return 'Без этапа';
+    var a = stgAll();
+    for (var i = 0; i < a.length; i++) if (a[i][0] === k) return a[i][1];
+    return 'Без этапа';
+  }
+  function stageOf(p, id) { var k = (p.ps || {})[id] || ''; return stgKnown(k) ? k : ''; }
+  function pgLabel(p, id) { var m = (p.pn || {})[id]; return m && m[1] ? 'стр. ' + m[1] : ''; }
+  function stagesOf(p) {
+    p.ph = p.ph || []; p.ps = p.ps || {};
+    var out = [], order = stgAll().map(function (s) { return s[0]; }).concat(['']);
+    order.forEach(function (k) {
+      var ids = p.ph.filter(function (id) { return stageOf(p, id) === k; });
+      if (ids.length) out.push({ k: k, n: stgName(k), ids: ids });
+    });
+    return out;
+  }
+  function flatPages(p) {
+    var o = [];
+    stagesOf(p).forEach(function (s) { s.ids.forEach(function (id) { o.push({ id: id, s: s.k, n: s.n, l: pgLabel(p, id) }); }); });
+    return o;
+  }
+  function plr(n, a, b, c) { return window.plur ? plur(n, a, b, c) : n; }
+
+  function dsCss() {
+    if (document.getElementById('studio-ds-css')) return;
+    var s = document.createElement('style');
+    s.id = 'studio-ds-css';
+    s.textContent = [
+      '.pgst{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:0 16px 4px;scrollbar-width:none}',
+      '.pgst::-webkit-scrollbar{display:none}',
+      '.pgst img{flex:none;height:150px;width:auto;max-width:none;border-radius:8px;background:var(--s2);display:block}',
+      '.pgg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}',
+      '.pgi{position:relative;aspect-ratio:1;border-radius:8px;background:var(--s2) center/contain no-repeat;border:2px solid transparent;box-sizing:border-box}',
+      '.pgi.on{border-color:var(--ac)}',
+      '.pgi i{position:absolute;left:4px;bottom:4px;font-style:normal;font-size:11px;background:rgba(0,0,0,.55);color:#fff;border-radius:6px;padding:1px 5px}',
+      '.pgi b{position:absolute;right:4px;top:4px;width:20px;height:20px;border-radius:10px;background:var(--ac);color:#fff;font-size:12px;display:none;align-items:center;justify-content:center}',
+      '.pgi.on b{display:flex}',
+      '.pgbar{position:sticky;top:0;z-index:4;background:var(--bg);padding:8px 16px;margin:0 -16px 8px}',
+      '.pgv{position:absolute;inset:0;z-index:92;background:#000;display:flex;flex-direction:column;color:#fff}',
+      '.pgv .top{flex:none;display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px}',
+      '.pgv .top .x{width:36px;height:36px;border-radius:18px;border:0;background:rgba(255,255,255,.16);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;padding:0}',
+      '.pgv .top .ttl{flex:1;min-width:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.pgv .top .cn{font-size:13px;color:#bbb;flex:none}',
+      '.pgv .sc2{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
+      '.pgv .sc2::-webkit-scrollbar{display:none}',
+      '.pgv .sl{flex:none;width:100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always;overflow:auto;-webkit-overflow-scrolling:touch}',
+      '.pgv .sl .z{width:100%;height:100%;display:flex;align-items:center;justify-content:center}',
+      '.pgv .sl img{max-width:100%;max-height:100%;object-fit:contain;display:block}',
+      '.pgv .sl.zm .z{width:240%;height:auto;min-height:100%;align-items:flex-start}',
+      '.pgv .sl.zm img{max-width:100%;max-height:none;width:100%;height:auto}',
+      '.pgv .stgs{flex:none;display:flex;gap:6px;overflow-x:auto;padding:8px 12px calc(10px + env(safe-area-inset-bottom,0px));scrollbar-width:none}',
+      '.pgv .stgs::-webkit-scrollbar{display:none}',
+      '.pgv .stgs button{flex:none;border:0;border-radius:14px;padding:7px 11px;font-size:13px;background:rgba(255,255,255,.14);color:#fff}',
+      '.pgv .stgs button.on{background:#fff;color:#000}'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  /* ---- просмотр страниц: листать, двойной тап - увеличить, этапы внизу ---- */
+  function pgView(list, idx) {
+    if (!list.length) return;
+    dsCss();
+    var old = document.getElementById('pgv');
+    if (old) old.remove();
+    var d = document.createElement('div');
+    d.id = 'pgv';
+    d.className = 'pgv';
+    var stages = [];
+    list.forEach(function (it, i) { if (!stages.some(function (x) { return x.s === it.s; })) stages.push({ s: it.s, n: it.n, i: i }); });
+    d.innerHTML = '<div class="top"><button class="x" type="button" aria-label="Закрыть">' + U.I('x', 18) + '</button>' +
+      '<span class="ttl"></span><span class="cn"></span></div>' +
+      '<div class="sc2">' + list.map(function (it) {
+        return '<div class="sl"><div class="z"><img loading="lazy" decoding="async" src="' + bUrl(it.id) + '"></div></div>';
+      }).join('') + '</div>' +
+      (stages.length > 1 ? '<div class="stgs">' + stages.map(function (s, k) { return '<button type="button" data-i="' + s.i + '">' + esc(s.n) + '</button>'; }).join('') + '</div>' : '');
+    U.ui.appendChild(d);
+    var sc = d.querySelector('.sc2'), ttl = d.querySelector('.ttl'), cn = d.querySelector('.cn');
+    var chips = [].slice.call(d.querySelectorAll('.stgs button'));
+    function upd() {
+      var i = Math.max(0, Math.min(list.length - 1, Math.round(sc.scrollLeft / (sc.clientWidth || 1))));
+      var it = list[i];
+      ttl.textContent = it.n + (it.l ? ' · ' + it.l : '');
+      cn.textContent = (i + 1) + ' / ' + list.length;
+      chips.forEach(function (b) {
+        var st = stages.filter(function (s) { return String(s.i) === b.getAttribute('data-i'); })[0];
+        b.classList.toggle('on', !!st && st.s === it.s);
+      });
+    }
+    sc.addEventListener('scroll', upd, { passive: true });
+    d.querySelector('.x').addEventListener('click', function () { d.remove(); });
+    chips.forEach(function (b) {
+      b.addEventListener('click', function () { sc.scrollTo({ left: (+b.getAttribute('data-i')) * sc.clientWidth, behavior: 'smooth' }); });
+    });
+    var last = 0;
+    [].slice.call(d.querySelectorAll('.sl')).forEach(function (sl) {
+      sl.addEventListener('click', function () {
+        var t = Date.now();
+        if (t - last < 320) {
+          sl.classList.toggle('zm');
+          if (sl.classList.contains('zm')) { sl.scrollLeft = (sl.scrollWidth - sl.clientWidth) / 2; sl.scrollTop = 0; }
+          last = 0;
+        } else last = t;
+      });
+    });
+    setTimeout(function () { sc.scrollLeft = (idx || 0) * sc.clientWidth; upd(); }, 0);
+  }
+
+  /* ---- PDF -> картинки страниц (pdf.js подгружается один раз, нужен интернет) ---- */
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (DS.lib) return DS.lib;
+    var V = '3.11.174';
+    var S = ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.min.js', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@' + V + '/build/pdf.min.js'];
+    var W = ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.worker.min.js', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@' + V + '/build/pdf.worker.min.js'];
+    DS.lib = new Promise(function (res, rej) {
+      var i = 0;
+      (function next() {
+        if (i >= S.length) { DS.lib = null; rej(new Error('pdfjs')); return; }
+        var s = document.createElement('script');
+        s.src = S[i];
+        s.onload = function () {
+          if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = W[i]; res(window.pdfjsLib); }
+          else { i++; next(); }
+        };
+        s.onerror = function () { i++; next(); };
+        document.head.appendChild(s);
+      })();
+    });
+    return DS.lib;
+  }
+  function renderPage(doc, n) {
+    return doc.getPage(n).then(function (pg) {
+      var v1 = pg.getViewport({ scale: 1 });
+      var k = Math.min(4, 2000 / Math.max(v1.width, v1.height));
+      var v = pg.getViewport({ scale: k });
+      var cv = document.createElement('canvas');
+      cv.width = Math.round(v.width);
+      cv.height = Math.round(v.height);
+      var cx = cv.getContext('2d');
+      cx.fillStyle = '#fff';
+      cx.fillRect(0, 0, cv.width, cv.height);
+      return pg.render({ canvasContext: cx, viewport: v }).promise.then(function () {
+        return new Promise(function (res) { cv.toBlob(res, 'image/jpeg', 0.86); });
+      }).then(function (blob) {
+        cv.width = cv.height = 0;
+        try { pg.cleanup(); } catch (e) {}
+        return blob;
+      });
+    });
+  }
+
+  function guessStage(name, isImg) {
+    var n = String(name || '').toLowerCase().replace(/ё/g, 'е');
+    var R = [[/обмер/, 'meas'], [/концепц|мудборд|moodboard|референс/, 'conc'], [/планир/, 'plan'], [/визуал|рендер|render|3d/, 'vis'],
+      [/чертеж|рабоч|раздел/, 'work'], [/ведомост|специф/, 'spec'], [/комплект|меблир/, 'comp'], [/план/, 'plan']];
+    for (var i = 0; i < R.length; i++) if (R[i][0].test(n)) return R[i][1];
+    return isImg ? 'vis' : (DS.last || '');
+  }
+
+  /* ---- выбор файлов: сначала спрашиваем этап для каждого ---- */
+  function pickFiles(p, files, kind) {
+    if (!files.length) return;
+    if (DS.busy) { toast('Идет загрузка, подождите'); return; }
+    DS.q = {
+      pid: p.id,
+      items: files.map(function (f) {
+        var isPdf = /pdf/i.test(f.type) || /\.pdf$/i.test(f.name);
+        return { f: f, pdf: isPdf, s: guessStage(f.name, !isPdf) };
+      })
+    };
+    askStages();
+  }
+  function askStages() {
+    U.sheet(function () {
+      var Q = DS.q;
+      if (!Q) return { t: 'Этап проекта', b: '' };
+      var opts = function (cur) {
+        return '<option value="">Без этапа</option>' + stgAll().map(function (s) {
+          return '<option value="' + esc(s[0]) + '"' + (s[0] === cur ? ' selected' : '') + '>' + esc(s[1]) + '</option>';
+        }).join('');
+      };
+      var rows = Q.items.map(function (it, i) {
+        return '<div class="rw"><div class="tx"><b style="font-size:15px;line-height:19px;word-break:break-word">' + esc(it.f.name) + '</b>' +
+          '<span>' + (it.pdf ? 'PDF: каждая страница станет картинкой' : 'изображение') + '</span></div>' +
+          '<select class="fsel" style="flex:none;max-width:48%" onchange="' + U.f(function (e, el) { Q.items[i].s = el.value; DS.last = el.value; }) + '">' + opts(it.s) + '</select></div>';
+      }).join('');
+      return {
+        t: 'К какому этапу относится',
+        b: U.grp(rows) + '<div style="margin-top:10px"><button class="chip lt2" type="button"' + U.on(function () { newStage(function () { askStages(); }); }) + '>+ Свой этап</button></div>' +
+          '<div class="cp" style="margin-top:10px">Этап подобран по названию файла. Если в PDF несколько этапов, страницы можно потом перенести между этапами.</div>',
+        f: '<button class="btn g2"' + U.on(function () { DS.q = null; U.closeS(); }) + '>Отмена</button><button class="btn"' + U.on(function () { U.closeS(); runImport(); }) + '>Загрузить</button>'
+      };
+    });
+  }
+  function newStage(cb) {
+    U.sheet(function () {
+      return {
+        t: 'Свой этап',
+        b: U.grp('<div class="rw"><input class="fi" id="stgn" style="text-align:left" placeholder="Например, Электрика" enterkeyhint="done" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'),
+        f: '<button class="btn"' + U.on(function () {
+          var el = document.getElementById('stgn'), v = el ? el.value.trim() : '';
+          if (!v) { toast('Введите название'); return; }
+          PF.stg = PF.stg || [];
+          var ex = stgAll().filter(function (s) { return s[1].toLowerCase() === v.toLowerCase(); })[0];
+          var k = ex ? ex[0] : 'c' + Date.now().toString(36);
+          if (!ex) PF.stg.push([k, v]);
+          pfSave();
+          if (DS.q) DS.q.items.forEach(function (it) { if (!it.s && !it.touched) it.s = ''; });
+          cb(k);
+        }) + '>Добавить</button>'
+      };
+    });
+    setTimeout(function () { var e = document.getElementById('stgn'); if (e) e.focus(); }, 350);
+  }
+  function stagePick(title, cur, cb) {
+    U.sheet(function () {
+      var S = stgAll().concat([['', 'Без этапа']]);
+      return {
+        t: esc(title),
+        b: U.grp(S.map(function (s) {
+          return U.row({ t: esc(s[1]), ck: cur === s[0], noch: 1, fn: function () { U.closeS(); cb(s[0]); } });
+        }).join('') + U.row({ t: '<span style="color:var(--ac2)">+ Свой этап</span>', noch: 1, fn: function () { newStage(function (k) { U.closeS(); cb(k); }); } }))
+      };
+    });
+  }
+
+  function runImport() {
+    var Q = DS.q;
+    if (!Q || DS.busy) return;
+    var p = pfGet(Q.pid);
+    if (!p) return;
+    asGet().then(function (a) {
+      if (!a) { toast('Загрузка файлов недоступна в этом окне'); return; }
+      DS.busy = true;
+      DS.q = null;
+      p.ph = p.ph || []; p.ps = p.ps || {}; p.pn = p.pn || {};
+      var items = Q.items, total = 0, bad = 0;
+      var say = function (t) { var e = document.getElementById('pgprog'); if (e) e.textContent = t; };
+      try { U.R(); } catch (e) {}
+      var addPage = function (blob, it, num) {
+        return a.upload(blob).then(function (r) {
+          if (r && r.id) { p.ph.push(r.id); p.ps[r.id] = it.s || ''; p.pn[r.id] = [it.f.name, num]; total++; pfSave(); }
+          else bad++;
+        }, function () { bad++; });
+      };
+      var doPdf = function (it, fi) {
+        return loadPdfJs().then(function (lib) {
+          return it.f.arrayBuffer().then(function (buf) { return lib.getDocument({ data: buf }).promise; });
+        }).then(function (doc) {
+          var n = 1;
+          var step = function () {
+            if (n > doc.numPages) { try { doc.destroy(); } catch (e) {} return Promise.resolve(); }
+            say('Файл ' + (fi + 1) + ' из ' + items.length + ' · страница ' + n + ' из ' + doc.numPages);
+            var cur = n++;
+            return renderPage(doc, cur).then(function (blob) { return addPage(blob, it, cur); }, function () { bad++; }).then(step);
+          };
+          return step();
+        }, function () { bad++; toast('Не получилось открыть ' + it.f.name + '. Для PDF нужен интернет'); });
+      };
+      var doImg = function (it, fi) {
+        say('Файл ' + (fi + 1) + ' из ' + items.length);
+        return shrink(it.f).then(function (b) { return addPage(b, it, 0); }, function () { bad++; });
+      };
+      var i = 0;
+      var next = function () {
+        if (i >= items.length) return Promise.resolve();
+        var it = items[i], fi = i++;
+        return (it.pdf ? doPdf(it, fi) : doImg(it, fi)).then(next);
+      };
+      next().then(function () {
+        DS.busy = false;
+        pfSave();
+        try { U.R(); } catch (e) {}
+        toast(total ? 'Добавлено страниц: ' + total + (bad ? ' · ошибок ' + bad : '') : 'Ничего не добавлено');
+      }, function () { DS.busy = false; try { U.R(); } catch (e) {} toast('Загрузка прервалась'); });
+    });
+  }
+
+  /* ---- блок в карточке редактирования дизайн-проекта ---- */
+  function editBlock(p) {
+    var S = stagesOf(p), n = p.ph.length, h = '';
+    h += U.sh('Проект: PDF и страницы', n ? '<span class="cp">' + n + ' ' + plr(n, 'страница', 'страницы', 'страниц') + '</span>' : '');
+    h += '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      '<label class="btn" style="flex:1">' + U.I('pl', 18) + 'PDF<input type="file" accept="application/pdf,.pdf" multiple style="display:none" onchange="' +
+      U.f(function (e, el) { var f = [].slice.call(el.files); el.value = ''; pickFiles(p, f, 'pdf'); }) + '"></label>' +
+      '<label class="btn g2" style="flex:1">Изображения<input type="file" accept="image/*" multiple style="display:none" onchange="' +
+      U.f(function (e, el) { var f = [].slice.call(el.files); el.value = ''; pickFiles(p, f, 'img'); }) + '"></label></div>';
+    if (DS.busy) h += '<div class="cp" id="pgprog" style="margin:0 2px 10px">Готовлю страницы…</div>';
+    if (!S.length) return h + '<div class="cp" style="margin:0 2px">Загрузите PDF проекта: страницы станут картинками, их можно разложить по этапам (планировки, визуализации, чертежи).</div>';
+    h += U.grp(S.map(function (s) {
+      return U.row({
+        th: '', thS: U.bg(s.ids[0], p.id), t: esc(s.n), s: s.ids.length + ' ' + plr(s.ids.length, 'страница', 'страницы', 'страниц'),
+        fn: function () { DS.sel = []; DS.selOn = false; U.go('pstage', { p: p.id, k: s.k }); }
+      });
+    }).join(''));
+    return h;
+  }
+
+  /* ---- блок просмотра в карточке проекта ---- */
+  function viewBlock(p) {
+    var S = stagesOf(p);
+    if (!S.length) return '';
+    var all = flatPages(p), h = '';
+    h += U.sh('Проект', '<span class="cp">' + all.length + ' ' + plr(all.length, 'страница', 'страницы', 'страниц') + '</span>');
+    h += '<button class="btn" style="height:46px;margin-bottom:4px"' + U.on(function () { pgView(all, 0); }) + '>Листать проект</button>';
+    S.forEach(function (s) {
+      h += U.sh(esc(s.n), '<span class="cp">' + s.ids.length + '</span>') +
+        '<div class="pgst">' + s.ids.map(function (id) {
+          return '<img loading="lazy" decoding="async" src="' + bUrl(id) + '"' + U.on(function () {
+            var i = 0;
+            all.forEach(function (it, k) { if (it.id === id) i = k; });
+            pgView(all, i);
+          }) + '>';
+        }).join('') + '</div>';
+    });
+    return h;
+  }
+
+  /* ---- экран этапа: страницы, выбор, перенос, порядок, обложка, удаление ---- */
+  function stageScreen(a) {
+    var p = pfGet(a.p);
+    if (!p) return U.nv('Проект') + '<div class="empty"><b>Проект удален</b></div>';
+    var ids = p.ph.filter(function (id) { return stageOf(p, id) === a.k; });
+    DS.sel = DS.sel.filter(function (id) { return ids.indexOf(id) >= 0; });
+    var h = U.nv('Проект', '<button class="ib tx"' + U.on(function () { DS.selOn = !DS.selOn; DS.sel = []; U.R(); }) + '>' + (DS.selOn ? 'Готово' : 'Выбрать') + '</button>');
+    h += '<div class="mt">' + esc(stgName(a.k)) + '</div><div class="cp" style="margin-bottom:12px">' + ids.length + ' ' + plr(ids.length, 'страница', 'страницы', 'страниц') + '</div>';
+    if (DS.selOn) {
+      var n = DS.sel.length;
+      h += '<div class="pgbar"><div class="chips">' +
+        '<button class="chip sm lt2"' + U.on(function () { DS.sel = n === ids.length ? [] : ids.slice(); U.R(); }) + '>' + (n === ids.length ? 'Снять все' : 'Выбрать все') + '</button>';
+      if (n) {
+        h += '<button class="chip sm on"' + U.on(function () {
+          stagePick('Перенести в этап', a.k, function (k) {
+            p.ps = p.ps || {};
+            DS.sel.forEach(function (id) { p.ps[id] = k; });
+            DS.sel = [];
+            pfSave();
+            U.R();
+          });
+        }) + '>Перенести: ' + n + '</button>';
+      }
+      if (n === 1) {
+        var id1 = DS.sel[0], k1 = ids.indexOf(id1);
+        var swap = function (d) {
+          var j = k1 + d;
+          if (j < 0 || j >= ids.length) return;
+          var x = p.ph.indexOf(id1), y = p.ph.indexOf(ids[j]);
+          p.ph[x] = ids[j]; p.ph[y] = id1;
+          pfSave(); U.R();
+        };
+        h += '<button class="chip sm lt2"' + U.on(function () { swap(-1); }) + '>Раньше</button>' +
+          '<button class="chip sm lt2"' + U.on(function () { swap(1); }) + '>Позже</button>' +
+          '<button class="chip sm lt2"' + U.on(function () {
+            p.ph = [id1].concat(p.ph.filter(function (x) { return x !== id1; }));
+            pfSave(); toast('Страница стала обложкой проекта'); U.R();
+          }) + '>Обложка</button>';
+      }
+      if (n) {
+        h += '<button class="chip sm lt2" style="color:var(--er)"' + U.on(function (e, el) {
+          if (!el._a) { el._a = 1; el.textContent = 'Удалить: ' + n + '?'; return; }
+          var gone = DS.sel.slice();
+          p.ph = p.ph.filter(function (x) { return gone.indexOf(x) < 0; });
+          gone.forEach(function (x) { delete p.ps[x]; if (p.pn) delete p.pn[x]; });
+          DS.sel = [];
+          pfSave();
+          U.R();
+          asGet().then(function (as) { if (as) gone.forEach(function (x) { try { as.delete(x); } catch (e) {} }); });
+        }) + '>Удалить</button>';
+      }
+      h += '</div></div>';
+    }
+    if (!ids.length) return h + '<div class="empty"><b>В этом этапе страниц нет</b>Добавьте PDF в карточке проекта</div>';
+    var list = ids.map(function (id) { return { id: id, s: a.k, n: stgName(a.k), l: pgLabel(p, id) }; });
+    h += '<div class="pgg">' + ids.map(function (id, i) {
+      var on = DS.sel.indexOf(id) >= 0, lb = pgLabel(p, id);
+      return '<div class="pgi' + (on ? ' on' : '') + '" style="background-image:url(' + bUrl(id) + ')"' + U.on(function () {
+        if (DS.selOn) {
+          var q = DS.sel.indexOf(id);
+          if (q >= 0) DS.sel.splice(q, 1); else DS.sel.push(id);
+          U.R();
+        } else pgView(list, i);
+      }) + '>' + (lb ? '<i>' + esc(lb) + '</i>' : '') + '<b>' + U.I('ck', 12) + '</b></div>';
+    }).join('') + '</div>';
+    return h;
+  }
+
+  function hookDesign() {
+    if (!(window.U && U.S && U.S.pedit && U.S.proj && window.PF) || U.S.pedit.__wrapped) return;
+    dsCss();
+    var oe = U.S.pedit, op = U.S.proj;
+    U.S.pedit = function (id) {
+      var h = oe.apply(this, arguments), p = pfGet(id);
+      if (!p || p.kind !== 'd') return h;
+      try {
+        p.ph = p.ph || [];
+        var re = /<div class="sh2">Фото<span class="cp">первое - обложка<\/span><\/div>[\s\S]*?(?=<div class="sh2">)/;
+        return re.test(h) ? h.replace(re, function () { return editBlock(p); }) : h + editBlock(p);
+      } catch (e) { return h; }
+    };
+    U.S.pedit.__wrapped = true;
+    U.S.proj = function (id) {
+      var h = op.apply(this, arguments), p = pfGet(id);
+      if (!p || p.kind !== 'd') return h;
+      try {
+        p.ph = p.ph || [];
+        h = h.replace(/<div class="sh2">Визуализации<\/div><div style="display:grid;gap:6px;margin:0 -16px">[\s\S]*?<\/div>/, '');
+        var blk = viewBlock(p);
+        if (!blk) return h;
+        var b = h.indexOf('class="bt"'), pos = -1;
+        if (b >= 0) { var e2 = h.indexOf('</div></div></div>', b); if (e2 >= 0) pos = e2 + 18; }
+        if (pos < 0) return h + blk;
+        if (h.slice(pos, pos + 3) === '<p ') { var pe = h.indexOf('</p>', pos); if (pe >= 0) pos = pe + 4; }
+        return h.slice(0, pos) + blk + h.slice(pos);
+      } catch (e) { return h; }
+    };
+    U.S.proj.__wrapped = true;
+    U.S.pstage = stageScreen;
+  }
+
   /* ================= меню ================= */
   function menu() {
     var t = themeName();
@@ -462,12 +889,12 @@
     hookUndo();
     hookOpenObj();
     hookHome();
-    hookObjMenu();
+    hookObjMenu(); hookDesign();
     // догоняем, если приложение уже успело отрисоваться
     var n = 0;
     var t = setInterval(function () {
       n++;
-      applyTheme(); hookUndo(); hookOpenObj(); hookHome(); hookObjMenu();
+      applyTheme(); hookUndo(); hookOpenObj(); hookHome(); hookObjMenu(); hookDesign();
       if (n > 20) clearInterval(t);
     }, 250);
   }
