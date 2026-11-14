@@ -1,4 +1,4 @@
-/* Студия — дополнения: тема, печать, самопроверка, дубликат, отмена, продолжение.
+/* Студия — дополнения: тема, печать, самопроверка, дубликат, отмена, поиск по свайпу.
    Подключается после storage.js и ничего в нём не ломает. */
 (function () {
   'use strict';
@@ -32,7 +32,7 @@
     '@media print{',
     'html,body{background:#fff !important;color:#000 !important}',
     '#ui,.ly,.sc,.in{position:static !important;height:auto !important;overflow:visible !important;display:block !important}',
-    '.nv,.sbs,.sbg,.ctx,.toast,.svt,.sheet,.shd,.gr,.fade{display:none !important}',
+    '.nv,.sbs,.sbg,.ctx,.toast,.svt,.sheet,.shd,.gr,.fade,.sx,.sxp{display:none !important}',
     '*{color:#000 !important;background:transparent !important;box-shadow:none !important;text-shadow:none !important}',
     '.rw,.row,.hs,.cv,.q{border-color:#bbb !important}',
     '}'
@@ -240,14 +240,7 @@
     window.doDelObj = wrapped;
   }
 
-  /* ================= «продолжить последний объект» ================= */
-  function lastObjIndex() {
-    var id = localStorage.getItem('studio_last_obj');
-    if (!id) return -1;
-    var list = window.objs || [];
-    for (var i = 0; i < list.length; i++) if (String(list[i].n) === String(id)) return i;
-    return -1;
-  }
+  /* ================= запоминаем последний открытый объект ================= */
   function hookOpenObj() {
     if (typeof window.U === 'undefined' || !U.openObj || U.openObj.__wrapped) return;
     var orig = U.openObj;
@@ -262,28 +255,184 @@
     wrapped.__wrapped = true;
     U.openObj = wrapped;
   }
+
+  /* ================= поиск: открывается свайпом вниз на главной ================= */
+  var SX = { open: false, el: null, inst: false, pill: null, label: null };
+  var PULL_ARM = 90; /* на сколько пикселей надо потянуть, чтобы открылся поиск */
+  var pull = { on: false, act: false, x0: 0, y0: 0, dy: 0, sc: null, inn: null };
+
+  function sxCss() {
+    if (document.getElementById('studio-sx-css')) return;
+    var s = document.createElement('style');
+    s.id = 'studio-sx-css';
+    s.textContent = [
+      '.sxp{position:fixed;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 10px);height:44px;z-index:55;',
+      'border-radius:12px;background:var(--s2);color:var(--t3);display:none;align-items:center;gap:8px;padding:0 12px;',
+      'font-size:16px;pointer-events:none;border:1.5px solid transparent;box-sizing:border-box;max-width:640px;margin:0 auto}',
+      '.sxp.arm{border-color:var(--ac2);color:var(--t1)}',
+      '.sx{position:absolute;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;',
+      'animation:sxin .24s cubic-bezier(.32,.72,0,1)}',
+      '.sx.out{animation:sxout .18s ease forwards;pointer-events:none}',
+      '@keyframes sxin{from{opacity:0;transform:translateY(-22px)}to{opacity:1;transform:none}}',
+      '@keyframes sxout{to{opacity:0;transform:translateY(-22px)}}',
+      '.sxh{flex:none;width:100%;max-width:672px;margin:0 auto;box-sizing:border-box;',
+      'padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 8px}',
+      '.sxi{display:flex;align-items:center;gap:8px;height:44px;border-radius:12px;background:var(--s2);',
+      'padding:0 6px 0 12px;color:var(--t3)}',
+      '.sxi input{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--t1);height:44px;padding:0}',
+      '.sxi input::placeholder{color:var(--t3)}',
+      '.sxi input::-webkit-search-cancel-button{display:none}',
+      '.sxx{width:32px;height:32px;border-radius:16px;border:0;background:var(--s3);color:var(--t2);',
+      'display:flex;align-items:center;justify-content:center;padding:0;flex:none}',
+      '.sxr{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;',
+      'width:100%;max-width:672px;margin:0 auto;box-sizing:border-box;padding:4px 16px 40px}',
+      'body.kb .sxr{padding-bottom:45vh}'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  function sxResults() { try { return U.sres(); } catch (e) { return ''; } }
+
+  function openSx() {
+    if (SX.open || !(window.U && U.ui && U.sres)) return;
+    SX.open = true;
+    U.gq = '';
+    var ov = document.createElement('div');
+    ov.id = 'sx';
+    ov.className = 'sx';
+    ov.innerHTML = '<div class="sxh"><div class="sxi">' + U.I('se', 18) +
+      '<input id="gq" type="search" enterkeyhint="search" placeholder="Объекты, проекты, решения, работы" ' +
+      'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
+      '<button class="sxx" type="button" aria-label="Закрыть поиск">' + U.I('x', 15) + '</button></div></div>' +
+      '<div id="gres" class="sxr"></div>';
+    U.ui.appendChild(ov);
+    SX.el = ov;
+    var inp = ov.querySelector('#gq'), res = ov.querySelector('#gres');
+    res.innerHTML = sxResults();
+    inp.addEventListener('input', function () { U.gq = inp.value; res.innerHTML = sxResults(); });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') inp.blur(); });
+    /* крестик: очищает, убирает клавиатуру и закрывает поиск */
+    ov.querySelector('.sxx').addEventListener('click', function (e) { e.preventDefault(); closeSx(); });
+    /* листаешь результаты - клавиатура прячется */
+    res.addEventListener('touchmove', function () { if (document.activeElement === inp) inp.blur(); }, { passive: true });
+    /* нажали на результат: если открылся другой экран, поиск закрываем; если шторка или подсказка - остаемся */
+    var snap = null;
+    res.addEventListener('click', function () { snap = { top: U.top(), len: U.st.length }; }, true);
+    res.addEventListener('click', function () {
+      setTimeout(function () {
+        if (!SX.open || !snap) return;
+        if (U.top() !== snap.top || U.st.length !== snap.len) { closeSx(); return; }
+        if (U.ui.querySelector('.sht')) return;
+        if (inp.value !== U.gq) inp.value = U.gq;
+        res.innerHTML = sxResults();
+      }, 0);
+    });
+    try { inp.focus(); } catch (e) {}
+  }
+
+  function closeSx() {
+    if (!SX.open) return;
+    SX.open = false;
+    var ov = SX.el;
+    SX.el = null;
+    try { var i = ov.querySelector('#gq'); i.value = ''; i.blur(); } catch (e) {}
+    U.gq = '';
+    ov.classList.add('out');
+    setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 190);
+  }
+  window.studioOpenSearch = openSx;
+  window.studioCloseSearch = closeSx;
+
+  function homeActive() {
+    var t = window.U && U.top && U.top();
+    return !!(t && t.id === 'home' && !SX.open && !U.busy && !U.ui.querySelector('.sht'));
+  }
+
+  function pullUpdate(dy) {
+    var shift = Math.min(58, dy * 0.55);
+    if (pull.inn) { pull.inn.style.transition = 'none'; pull.inn.style.transform = 'translateY(' + shift + 'px)'; }
+    var k = Math.min(1, shift / 40);
+    SX.pill.style.opacity = k;
+    SX.pill.style.transform = 'translateY(' + ((1 - k) * -14) + 'px)';
+    var arm = dy >= PULL_ARM;
+    SX.pill.classList.toggle('arm', arm);
+    SX.label.textContent = arm ? 'Отпустите для поиска' : 'Потяните вниз для поиска';
+  }
+
+  function pullEnd(cancel) {
+    if (!pull.on) return;
+    var was = pull.act, arm = !cancel && pull.dy >= PULL_ARM, inn = pull.inn;
+    pull.on = false;
+    pull.act = false;
+    if (inn) {
+      inn.style.transition = 'transform .22s cubic-bezier(.32,.72,0,1)';
+      inn.style.transform = '';
+      setTimeout(function () { inn.style.transition = ''; }, 260);
+    }
+    if (!was) return;
+    if (arm) openSx(); /* фокус ставится прямо в жесте, поэтому клавиатура открывается сразу */
+    SX.pill.style.display = 'none';
+  }
+
+  function installSx() {
+    if (SX.inst || !(window.U && U.ui)) return;
+    SX.inst = true;
+    sxCss();
+    var pill = document.createElement('div');
+    pill.className = 'sxp';
+    pill.innerHTML = U.I('se', 18) + '<span>Потяните вниз для поиска</span>';
+    U.ui.appendChild(pill);
+    SX.pill = pill;
+    SX.label = pill.querySelector('span');
+
+    document.addEventListener('touchstart', function (e) {
+      pull.on = false;
+      if (e.touches.length !== 1 || !homeActive()) return;
+      var p = e.touches[0];
+      if (p.clientX < 26) return; /* левый край - свайп назад */
+      var sc = U.cur && U.cur.querySelector('.sc');
+      if (!sc || !sc.contains(e.target) || sc.scrollTop > 0) return;
+      pull.on = true;
+      pull.act = false;
+      pull.x0 = p.clientX;
+      pull.y0 = p.clientY;
+      pull.dy = 0;
+      pull.sc = sc;
+      pull.inn = sc.querySelector('.in');
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function (e) {
+      if (!pull.on) return;
+      var p = e.touches[0], dx = p.clientX - pull.x0, dy = p.clientY - pull.y0;
+      if (!pull.act) {
+        if (dy > 10 && dy > Math.abs(dx) * 1.3 && pull.sc.scrollTop <= 0) {
+          pull.act = true;
+          SX.pill.style.display = 'flex';
+        } else if (dy < -6 || Math.abs(dx) > 14) { pull.on = false; return; }
+        else return;
+      }
+      pull.dy = Math.max(0, dy);
+      pullUpdate(pull.dy);
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchend', function () { pullEnd(false); });
+    document.addEventListener('touchcancel', function () { pullEnd(true); });
+  }
+
+  /* на главной убираем постоянную строку поиска (его открывает свайп вниз) и плашку «Продолжить» */
   function hookHome() {
     if (!(window.U && U.S && U.S.home) || U.S.home.__wrapped) return;
+    installSx();
     var orig = U.S.home;
     var wrapped = function () {
       var h = orig.apply(this, arguments);
-      var i = lastObjIndex();
-      if (i < 0) return h;
-      var o = window.objs[i];
-      var label = (o.addr || ('Объект ' + o.n)) + (o.area ? ', ' + o.area + ' м²' : '');
-      var card = '<div class="grp">' + U.row({
-        ic: 'ru', col: '#0a84ff',
-        t: 'Продолжить',
-        s: label,
-        v: o.rem ? 'осталось ' + o.rem : '',
-        fn: function () { U.openObj(i); }
-      }) + '</div>';
-      var marker = '<div class="lt">Студия</div>';
-      if (h.indexOf(marker) >= 0) return h.replace(marker, marker + card);
-      return card + h;
+      return String(h).replace(/<div class="srch"[^>]*>[\s\S]*?<\/div>/, '');
     };
     wrapped.__wrapped = true;
     U.S.home = wrapped;
+    U.openSearch = function () { openSx(); };
+    try { U.R(); } catch (e) {}
   }
 
   /* ================= меню ================= */
