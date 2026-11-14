@@ -113,7 +113,7 @@
       var pages = 0;
       try { pages = Math.round(lsBytes() / 1024); } catch (e) {}
       var rows = [
-        ['Версия', 'Студия · 2-я сборка'],
+        ['Версия', 'Студия · сборка 3 (PDF)'],
         ['Объектов', objsN],
         ['Файлов в памяти', files < 0 ? 'недоступно' : files],
         ['Занято в хранилище', pages + ' КБ (лимит ~5 МБ)'],
@@ -427,7 +427,8 @@
     var orig = U.S.home;
     var wrapped = function () {
       var h = orig.apply(this, arguments);
-      return String(h).replace(/<div class="srch"[^>]*>[\s\S]*?<\/div>/, '');
+      return String(h).replace(/<div class="srch"[^>]*>[\s\S]*?<\/div>/, '') +
+        '<div class="cp" style="text-align:center;margin:28px 0 8px;opacity:.45">сборка 3 · PDF в дизайн-проектах</div>';
     };
     wrapped.__wrapped = true;
     U.S.home = wrapped;
