@@ -1,10 +1,11 @@
 /* Студия — офлайн-кэш.
    Меняйте VERSION при каждом обновлении приложения: старый кэш будет вычищен. */
-const VERSION = 'studio-3';
+const VERSION = 'studio-4';
 const SHELL = [
   './',
   './index.html',
   './storage.js',
+  './extra.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
   './icons/icon-192.png',

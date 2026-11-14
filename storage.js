@@ -209,6 +209,8 @@
     ]);
   }
   window.studioBackup = backupMenu;
+  window.studioDownloadBackup = downloadBackup;
+  window.studioPickImport = pickImport;
   window.studioExportJSON = exportJSON;
 
   /* ---------- Кнопка в шапке списка объектов ---------- */
@@ -226,7 +228,7 @@
       b.setAttribute('data-bk', '1');
       b.setAttribute('aria-label', 'Резервная копия');
       b.innerHTML = typeof window.I === 'function' ? I('bk2', 18) : '⋯';
-      b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); backupMenu(); });
+      b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); (window.studioMenu || backupMenu)(); });
       rt.insertBefore(b, rt.firstChild);
     } catch (e) {}
   }
