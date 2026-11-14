@@ -1,9 +1,10 @@
 /* Студия — офлайн-кэш.
    Меняйте VERSION при каждом обновлении приложения: старый кэш будет вычищен. */
-const VERSION = 'studio-1';
+const VERSION = 'studio-3';
 const SHELL = [
   './',
   './index.html',
+  './storage.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
   './icons/icon-192.png',
@@ -30,26 +31,17 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Страницы: сначала сеть (чтобы обновления приходили сразу), офлайн — из кэша.
-  if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req)
-        .then(res => {
-          const copy = res.clone();
-          caches.open(VERSION).then(cache => cache.put(req, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
-    );
-    return;
-  }
-
-  // Остальное (иконки, манифест): сначала кэш, потом сеть.
+  // Сначала сеть (чтобы обновления приходили сразу), при отсутствии сети — кэш.
   event.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
-      const copy = res.clone();
-      caches.open(VERSION).then(cache => cache.put(req, copy)).catch(() => {});
-      return res;
-    }).catch(() => hit))
+    fetch(req)
+      .then(res => {
+        const copy = res.clone();
+        caches.open(VERSION).then(cache => cache.put(req, copy)).catch(() => {});
+        return res;
+      })
+      .catch(() => caches.match(req).then(hit => {
+        if (hit) return hit;
+        if (req.mode === 'navigate') return caches.match('./index.html');
+      }))
   );
 });
