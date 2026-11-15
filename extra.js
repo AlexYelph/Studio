@@ -27,6 +27,8 @@
     'html[data-theme="light"] .shd,html[data-theme="light"] .sheet{background:#fff !important;color:#1b1b1d !important}',
     'html[data-theme="light"] .ctx div{border-color:rgba(0,0,0,.10) !important}',
     'html[data-theme="light"] .ctx svg{color:#5d5d63}',
+    /* --- на обложке всегда тёмный градиент: текст должен быть светлым в любой теме --- */
+    '.hero .bt,.hero .bt .mt{color:#fff}',
 
     /* --- печать: только содержимое, без интерфейса --- */
     '@media print{',
@@ -113,7 +115,7 @@
       var pages = 0;
       try { pages = Math.round(lsBytes() / 1024); } catch (e) {}
       var rows = [
-        ['Версия', 'Студия · сборка 4'],
+        ['Версия', 'Студия · сборка 5'],
         ['Объектов', objsN],
         ['Файлов в памяти', files < 0 ? 'недоступно' : files],
         ['Занято в хранилище', pages + ' КБ (лимит ~5 МБ)'],
@@ -257,7 +259,8 @@
   }
 
   /* ================= поиск: открывается свайпом вниз на главной ================= */
-  var SX = { open: false, el: null, bd: null, inst: false, pill: null, label: null, sus: false, supT: 0, scr: 0, ok: 0 };
+  var SX = { open: false, el: null, bd: null, inst: false, pill: null, label: null, sus: false, supT: 0, scr: 0, ok: 0,
+    inp: null, sTop: null, raf: 0, kb: 0 };
   var PULL_ARM = 90; /* на сколько пикселей надо потянуть, чтобы открылся поиск */
   var pull = { on: false, act: false, x0: 0, y0: 0, dy: 0, sc: null, inn: null };
 
@@ -272,9 +275,10 @@
       '.sxp.arm{border-color:var(--ac2);color:var(--t1)}',
       '.sxb{position:absolute;inset:0;z-index:58;background:rgba(0,0,0,.45);animation:sxfi .25s ease}',
       '.sxb.out{animation:sxfo .22s ease forwards;pointer-events:none}',
-      '.sxs{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 34px);z-index:60;',
+      '.sxs{position:fixed;left:0;right:0;top:var(--sx-top,0px);height:var(--sx-h,100%);z-index:60;',
       'background:var(--bg);border-radius:16px 16px 0 0;display:flex;flex-direction:column;will-change:transform;',
-      'box-shadow:0 -8px 40px rgba(0,0,0,.4);animation:sxup .34s cubic-bezier(.32,.72,0,1)}',
+      'box-shadow:0 -8px 40px rgba(0,0,0,.4);padding-top:var(--sx-pad,0px);animation:sxup .34s cubic-bezier(.32,.72,0,1)}',
+      '.sxs.drag{animation:none;transition:none}',
       '.sxs.out{animation:sxdn .24s cubic-bezier(.32,.72,0,1) forwards;pointer-events:none}',
       '@keyframes sxfi{from{opacity:0}}@keyframes sxfo{to{opacity:0}}',
       '@keyframes sxup{from{transform:translateY(100%)}to{transform:none}}',
@@ -288,13 +292,65 @@
       '.sxx{width:32px;height:32px;border-radius:16px;border:0;background:var(--s3);color:var(--t2);',
       'display:flex;align-items:center;justify-content:center;padding:0;flex:none}',
       '.sxr{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;',
-      'width:100%;max-width:672px;margin:0 auto;box-sizing:border-box;padding:4px 16px 40px}',
-      'body.kb .sxr{padding-bottom:45vh}'
+      'width:100%;max-width:672px;margin:0 auto;box-sizing:border-box;',
+      'padding:4px 16px calc(var(--sx-kb,0px) + 32px);transition:padding-bottom .16s ease-out}',
+      /* пока шторка открыта, #ui не сдвигаем: шторка сама считается по visual viewport */
+      'html.sxo #ui{transform:none !important}'
     ].join('\n');
     document.head.appendChild(s);
   }
 
   function sxResults() { try { return U.sres(); } catch (e) { return ''; } }
+
+  /* ---- геометрия шторки по visual viewport ----
+     iOS при фокусе поля двигает visual viewport, а fixed-элементы считаются от layout viewport.
+     Поэтому высоту/верх/отступ под клавиатуру берём у visualViewport и пересчитываем на resize/scroll. */
+  function sxVv() { return window.visualViewport || null; }
+  function sxSafeTop() {
+    if (SX.sTop != null) return SX.sTop;
+    SX.sTop = 0;
+    try {
+      var d = document.createElement('div');
+      d.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:0;visibility:hidden;pointer-events:none;' +
+        'padding-top:env(safe-area-inset-top,0px)';
+      document.documentElement.appendChild(d);
+      SX.sTop = Math.round(d.getBoundingClientRect().height || 0);
+      if (d.parentNode) d.parentNode.removeChild(d);
+    } catch (e) { SX.sTop = 0; }
+    return SX.sTop;
+  }
+  function sxApply() {
+    var sh = SX.el;
+    if (!sh || !sh.parentNode) return;
+    var v = sxVv();
+    var top = v ? Math.max(0, Math.round(v.offsetTop)) : 0;
+    var lay = Math.max(1, Math.round(window.innerHeight || document.documentElement.clientHeight || 1));
+    var vis = v ? Math.max(1, Math.round(v.height)) : lay;
+    var kb = Math.max(0, lay - vis - top);
+    if (kb < 80) kb = 0;                     /* дрожание адресной строки клавиатурой не считаем */
+    var pad = Math.max(0, sxSafeTop() - top);
+    sh.style.setProperty('--sx-top', top + 'px');
+    sh.style.setProperty('--sx-h', Math.max(260, lay - top) + 'px');
+    sh.style.setProperty('--sx-pad', pad + 'px');
+    sh.style.setProperty('--sx-kb', kb + 'px');
+    SX.kb = kb;
+  }
+  function sxGeom() {
+    if (SX.raf) return;
+    SX.raf = 1;
+    var f = function () { SX.raf = 0; sxApply(); };
+    if (window.requestAnimationFrame) window.requestAnimationFrame(f);
+    else setTimeout(f, 16);
+  }
+  /* фокус без прокрутки документа: иначе Safari уводит шторку за верхний край */
+  function sxFocus(inp) {
+    if (!inp) return;
+    try { inp.focus({ preventScroll: true }); }
+    catch (e) { try { inp.focus(); } catch (x) {} }
+    sxGeom();
+    setTimeout(sxGeom, 60);
+    setTimeout(sxGeom, 220);
+  }
 
   /* поиск - выезжающая шторка: тянешь вниз - закрывается, нажал на результат - шторка уходит,
      а когда вернешься назад, она появляется снова с тем же запросом */
@@ -303,6 +359,7 @@
     SX.open = true;
     SX.sus = false;
     if (!restore) U.gq = '';
+    document.documentElement.classList.add('sxo');
     var bd = document.createElement('div');
     bd.className = 'sxb';
     var sh = document.createElement('div');
@@ -317,12 +374,21 @@
     SX.el = sh;
     SX.bd = bd;
     var inp = sh.querySelector('#gq'), res = sh.querySelector('#gres'), hd = sh.querySelector('.sxh');
+    SX.inp = inp;
+    sxApply();
+    if (sxVv()) { sxVv().addEventListener('resize', sxGeom); sxVv().addEventListener('scroll', sxGeom); }
+    window.addEventListener('resize', sxGeom);
+    window.addEventListener('orientationchange', sxGeom);
     inp.value = U.gq || '';
     res.innerHTML = sxResults();
     if (restore && SX.scr) res.scrollTop = SX.scr;
     inp.addEventListener('input', function () { U.gq = inp.value; res.innerHTML = sxResults(); });
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') inp.blur(); });
-    sh.querySelector('.sxx').addEventListener('click', function (e) { e.preventDefault(); closeSx(false); });
+    sh.querySelector('.sxx').addEventListener('click', function (e) {
+      e.preventDefault();
+      try { inp.blur(); } catch (x) {}
+      closeSx(false);
+    });
     bd.addEventListener('click', function () { closeSx(false); });
     res.addEventListener('touchmove', function () { if (document.activeElement === inp) inp.blur(); }, { passive: true });
 
@@ -335,7 +401,7 @@
     hd.addEventListener('touchmove', function (e) {
       if (!dg) return;
       var dy = Math.max(0, e.touches[0].clientY - dg.y0);
-      if (!dg.on && dy > 6) { dg.on = true; try { inp.blur(); } catch (x) {} sh.style.animation = 'none'; sh.style.transition = 'none'; }
+      if (!dg.on && dy > 6) { dg.on = true; try { inp.blur(); } catch (x) {} sh.classList.add('drag'); }
       if (!dg.on) return;
       dg.dy = dy;
       sh.style.transform = 'translateY(' + dy + 'px)';
@@ -349,6 +415,7 @@
       dg = null;
       if (dy > 110 || v > 0.5) closeSx(true);
       else {
+        sh.classList.remove('drag');
         sh.style.transition = 'transform .25s cubic-bezier(.32,.72,0,1)';
         sh.style.transform = '';
         bd.style.opacity = '';
@@ -370,7 +437,8 @@
         res.innerHTML = sxResults();
       }, 0);
     });
-    if (!restore) { try { inp.focus(); } catch (e) {} }
+    if (restore) setTimeout(sxGeom, 30);
+    else sxFocus(inp);
   }
 
   function killSx(fast) {
@@ -378,6 +446,13 @@
     var sh = SX.el, bd = SX.bd;
     SX.open = false;
     SX.el = SX.bd = null;
+    SX.inp = null;
+    if (sxVv()) { sxVv().removeEventListener('resize', sxGeom); sxVv().removeEventListener('scroll', sxGeom); }
+    window.removeEventListener('resize', sxGeom);
+    window.removeEventListener('orientationchange', sxGeom);
+    document.documentElement.classList.remove('sxo');
+    var ui = document.getElementById('ui');
+    if (ui) ui.style.transform = '';
     try { sh.querySelector('#gq').blur(); } catch (e) {}
     if (fast) {
       sh.style.transition = 'transform .22s cubic-bezier(.32,.72,0,1)';
@@ -499,9 +574,19 @@
     installSx();
     var orig = U.S.home;
     var wrapped = function () {
-      var h = orig.apply(this, arguments);
-      return String(h).replace(/<div class="srch"[^>]*>[\s\S]*?<\/div>/, '') +
-        '<div class="cp" style="text-align:center;margin:28px 0 8px;opacity:.45">сборка 4 · шторка поиска, новый просмотр страниц</div>';
+      try { rzCss(); } catch (e) {}
+      var h = String(orig.apply(this, arguments)).replace(/<div class="srch"[^>]*>[\s\S]*?<\/div>/, '');
+      /* реализации на главной — плитками в две колонки, а не лентой */
+      var at = h.indexOf('<b>Реализация</b>');
+      if (at >= 0) {
+        var ed = h.indexOf('<div class="ed">', at);
+        var nxt = h.indexOf('<div class="hd"', at);
+        var lim = nxt > ed ? nxt : h.length;
+        if (ed >= 0 && ed < lim && h.slice(ed, lim).indexOf('rzc') >= 0) {
+          h = h.slice(0, ed) + '<div class="ed rz">' + h.slice(ed + 16);
+        }
+      }
+      return h + '<div class="cp" style="text-align:center;margin:28px 0 8px;opacity:.45">сборка 5</div>';
     };
     wrapped.__wrapped = true;
     U.S.home = wrapped;
@@ -510,32 +595,49 @@
   }
 
   /* ================= дизайн-проект: PDF и этапы ================= */
-  var STG = [['meas', 'Обмеры'], ['conc', 'Концепция'], ['plan', 'Планировочные решения'], ['vis', 'Визуализации'],
-    ['work', 'Рабочие чертежи'], ['spec', 'Ведомости и спецификации'], ['comp', 'Комплектация'], ['other', 'Прочее']];
-  var DS = { q: null, busy: false, sel: [], selOn: false, last: '', lib: null };
+  var STG = [['meas', 'Обмеры'], ['conc', 'Концепция'], ['plan', 'Планировочные решения'], ['vis', 'Визуализации'],    ['work', 'Рабочие чертежи'], ['spec', 'Ведомости и спецификации'], ['comp', 'Комплектация'], ['other', 'Прочее']];
+  var DS = { q: null, busy: false, sel: [], selOn: false, last: '', lib: null, rep: null };
 
-  function stgAll() { var c = (window.PF && PF.stg) || []; return STG.concat(c); }
+  /* этапы реализации: свои названия, но те же поля p.ps / p.pn / PF.stg */
+  var STG_R = [['pre', 'До ремонта'], ['demo', 'Демонтаж'], ['rough', 'Черновые работы'],
+    ['eng', 'Инженерия и узлы'], ['fin', 'Чистовая отделка'], ['done', 'Результат']];
+
+  function stgAll() { var c = (window.PF && PF.stg) || []; return STG.concat(STG_R).concat(c); }
+  function stgList(kind) { var c = (window.PF && PF.stg) || []; return (kind === 'r' ? STG_R : STG).concat(c); }
   function stgKnown(k) { return !!k && stgAll().some(function (s) { return s[0] === k; }); }
-  function stgName(k) {
-    if (!k) return 'Без этапа';
+  function stgName(k, kind) {
+    var empty = kind === 'r' ? 'Фото' : 'Без этапа';
+    if (!k) return empty;
     var a = stgAll();
     for (var i = 0; i < a.length; i++) if (a[i][0] === k) return a[i][1];
-    return 'Без этапа';
+    return empty;
   }
   function stageOf(p, id) { var k = (p.ps || {})[id] || ''; return stgKnown(k) ? k : ''; }
   function pgLabel(p, id) { var m = (p.pn || {})[id]; return m && m[1] ? 'стр. ' + m[1] : ''; }
   function stagesOf(p) {
     p.ph = p.ph || []; p.ps = p.ps || {};
-    var out = [], order = stgAll().map(function (s) { return s[0]; }).concat(['']);
+    var kind = p.kind === 'r' ? 'r' : 'd';
+    var order = stgList(kind).map(function (s) { return s[0]; });
+    /* чужие этапы (старые данные, смена типа) не теряем — показываем после своих */
+    stgAll().forEach(function (s) { if (order.indexOf(s[0]) < 0) order.push(s[0]); });
+    order.push('');
+    var out = [], seen = {};
     order.forEach(function (k) {
+      if (seen[k]) return;
+      seen[k] = 1;
       var ids = p.ph.filter(function (id) { return stageOf(p, id) === k; });
-      if (ids.length) out.push({ k: k, n: stgName(k), ids: ids });
+      if (ids.length) out.push({ k: k, n: stgName(k, kind), ids: ids });
     });
     return out;
   }
   function flatPages(p) {
     var o = [];
-    stagesOf(p).forEach(function (s) { s.ids.forEach(function (id) { o.push({ id: id, s: s.k, n: s.n, l: pgLabel(p, id) }); }); });
+    stagesOf(p).forEach(function (s) {
+      s.ids.forEach(function (id) {
+        var m = pageSrc(p, id);
+        o.push({ id: id, s: s.k, n: s.n, l: pgLabel(p, id), th: (p.th || {})[id] || '', src: m ? m.src : '', pg: m ? m.pg : 0 });
+      });
+    });
     return o;
   }
   function plr(n, a, b, c) { return window.plur ? plur(n, a, b, c) : n; }
@@ -611,8 +713,21 @@
     var imgs = sls.map(function (s) { return s.firstChild; });
     var ttl = d.querySelector('.ttl'), cn = d.querySelector('.cn');
     var chips = [].slice.call(d.querySelectorAll('.stgs button'));
+    var HI = [];            /* страницы, перерисованные в большем разрешении, по индексу */
+    var HIq = {};           /* что уже запрошено, чтобы не дёргать pdf.js повторно */
 
-    function srcOf(k) { var it = list[k]; return it.u || bUrl(it.id); }
+    function srcOf(k) { var it = list[k]; return HI[k] || it.u || bUrl(it.id); }
+    /* при зуме больше ~2x просим у pdf.js ту же страницу в большем разрешении */
+    function requestHi(k) {
+      var it = list[k];
+      if (HIq[k] || !it || !it.src || !it.pg || !window.studioHiPage) return;
+      HIq[k] = 1;
+      window.studioHiPage(it.src, it.pg).then(function (u) {
+        if (!u) return;
+        HI[k] = u;
+        if (k === i) imgs[k].setAttribute('src', u);
+      }, function () {});
+    }
     function measure() {
       W = d.clientWidth || window.innerWidth;
       H = d.clientHeight || window.innerHeight;
@@ -654,14 +769,14 @@
         b.classList.toggle('on', !!st && st.s === it.s);
       });
     }
+    /* панели скрываются только классом .nc: inline-стили перебивали бы его и «залипали» после щипка */
+    function setPanels(hide) { d.classList.toggle('nc', !!hide); }
+    function panelsHidden() { return d.classList.contains('nc'); }
     function dv(anim) {
       var a = Math.min(1, Math.abs(ty) / 360);
       sls[i].style.transition = anim ? 'transform .22s cubic-bezier(.32,.72,0,1)' : 'none';
       sls[i].style.transform = ty ? 'translate3d(0,' + ty + 'px,0) scale(' + (1 - a * 0.1) + ')' : '';
       d.style.background = 'rgba(0,0,0,' + (1 - a * 0.85) + ')';
-      var o = String(Math.max(0, 1 - a * 2));
-      bar.style.opacity = o;
-      if (stg) stg.style.opacity = o;
     }
     function go(k, anim) {
       k = Math.max(0, Math.min(N - 1, k));
@@ -672,6 +787,7 @@
     function closeV(anim) {
       if (d._gone) return;
       d._gone = true;
+      setPanels(true);
       window.removeEventListener('resize', onRes);
       if (!anim) { if (d.parentNode) d.parentNode.removeChild(d); return; }
       var dir = ty >= 0 ? 1 : -1;
@@ -679,8 +795,6 @@
       sls[i].style.transform = 'translate3d(0,' + (dir * H) + 'px,0)';
       d.style.transition = 'background .22s';
       d.style.background = 'rgba(0,0,0,0)';
-      bar.style.opacity = '0';
-      if (stg) stg.style.opacity = '0';
       setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 240);
     }
     function onRes() { measure(); place(false); }
@@ -688,7 +802,7 @@
     d._off = function () { closeV(false); };
 
     /* ---- жесты ---- */
-    var G = { mode: '', x0: 0, y0: 0, lx: 0, ly: 0, lt: 0, vx: 0, vy: 0, d0: 1, s0: 1, mx0: 0, my0: 0, ox0: 0, oy0: 0, moved: false, lastTap: 0, ltx: 0, lty: 0, tt: 0 };
+    var G = { mode: '', x0: 0, y0: 0, lx: 0, ly: 0, lt: 0, vx: 0, vy: 0, d0: 1, s0: 1, mx0: 0, my0: 0, ox0: 0, oy0: 0, moved: false, lastTap: 0, ltx: 0, lty: 0, tt: 0, hid0: false };
     function dist(T) { var a = T[0].clientX - T[1].clientX, b = T[0].clientY - T[1].clientY; return Math.sqrt(a * a + b * b) || 1; }
     function mid(T) { return { x: (T[0].clientX + T[1].clientX) / 2, y: (T[0].clientY + T[1].clientY) / 2 }; }
     function startPinch(T) {
@@ -696,6 +810,7 @@
       var m = mid(T);
       G.d0 = dist(T); G.s0 = Z.s; G.mx0 = m.x; G.my0 = m.y; G.ox0 = Z.x; G.oy0 = Z.y;
       tx = 0; ty = 0; place(false); dv(false);
+      setPanels(true);   /* панели прячем на время жеста и сами не показываем — только тап */
       if (G.tt) { clearTimeout(G.tt); G.tt = 0; }
     }
     function doPinch(T) {
@@ -705,15 +820,16 @@
       Z.x = m.x - W / 2 - (s / G.s0) * (G.mx0 - W / 2 - G.ox0);
       Z.y = m.y - H / 2 - (s / G.s0) * (G.my0 - H / 2 - G.oy0);
       applyZ(false);
+      if (s > 2) requestHi(i);
     }
     function finishPinch() {
       if (Z.s < 1.05) Z = { s: 1, x: 0, y: 0 };
-      else { Z.s = Math.min(5, Z.s); clampZ(); }
+      else { Z.s = Math.min(5, Z.s); clampZ(); if (Z.s > 2) requestHi(i); }
       applyZ(true);
     }
     function toggleZoom(x, y) {
       if (Z.s > 1.05) Z = { s: 1, x: 0, y: 0 };
-      else { var s = 2.6; Z = { s: s, x: (x - W / 2) * (1 - s), y: (y - H / 2) * (1 - s) }; clampZ(); }
+      else { var s = 2.6; Z = { s: s, x: (x - W / 2) * (1 - s), y: (y - H / 2) * (1 - s) }; clampZ(); requestHi(i); }
       applyZ(true);
     }
     function tap(x, y) {
@@ -722,7 +838,7 @@
         clearTimeout(G.tt); G.tt = 0; G.lastTap = 0; toggleZoom(x, y); return;
       }
       G.lastTap = now; G.ltx = x; G.lty = y;
-      G.tt = setTimeout(function () { G.tt = 0; d.classList.toggle('nc'); }, 300);
+      G.tt = setTimeout(function () { G.tt = 0; setPanels(!panelsHidden()); }, 300);
     }
     function onUi(e) { return !!(e.target.closest && e.target.closest('.bar,.stgs')); }
 
@@ -733,6 +849,7 @@
       G.mode = '';
       G.x0 = G.lx = T[0].clientX; G.y0 = G.ly = T[0].clientY; G.lt = Date.now();
       G.vx = G.vy = 0; G.moved = false; G.ox0 = Z.x; G.oy0 = Z.y;
+      G.hid0 = panelsHidden();
     }, { passive: true });
 
     d.addEventListener('touchmove', function (e) {
@@ -756,6 +873,7 @@
         place(false);
       } else if (G.mode === 'dismiss') {
         ty = dy; dv(false);
+        if (Math.abs(dy) > 6) setPanels(true);
       } else if (G.mode === 'pan') {
         var b = bounds(), nx = G.ox0 + dx, ny = G.oy0 + dy;
         var cx = Math.max(-b.mx, Math.min(b.mx, nx)), cy = Math.max(-b.my, Math.min(b.my, ny));
@@ -775,16 +893,23 @@
       var x = c ? c.clientX : G.lx, y = c ? c.clientY : G.ly;
       if (m === 'pinch' || m === 'wait') { finishPinch(); return; }
       if (m === 'page' || (m === 'pan' && tx)) {
-        var thr = W * 0.2, dir = 0;
-        if (tx < -thr || (G.vx < -0.45 && tx < 0)) dir = 1;
-        else if (tx > thr || (G.vx > 0.45 && tx > 0)) dir = -1;
+        var dir = 0;
+        if (m === 'pan') {
+          /* на краю увеличенной картинки хватает небольшого увода за край */
+          if (tx < -28 || (G.vx < -0.4 && tx < 0)) dir = 1;
+          else if (tx > 28 || (G.vx > 0.4 && tx > 0)) dir = -1;
+        } else {
+          var thr = W * 0.2;
+          if (tx < -thr || (G.vx < -0.45 && tx < 0)) dir = 1;
+          else if (tx > thr || (G.vx > 0.45 && tx > 0)) dir = -1;
+        }
         if (m === 'pan') { clampZ(); applyZ(true); }
         go(i + dir, true);
         return;
       }
       if (m === 'dismiss') {
         if (Math.abs(ty) > 110 || Math.abs(G.vy) > 0.6) closeV(true);
-        else { ty = 0; dv(true); }
+        else { ty = 0; dv(true); setPanels(G.hid0); }
         return;
       }
       if (m === 'pan') { clampZ(); applyZ(true); return; }
@@ -844,29 +969,141 @@
     });
     return DS.lib;
   }
-  function renderPage(doc, n) {
+  /* ---- качество страниц: длинная сторона ~3400 px, но не больше ~13 Мп (лимиты canvas на iOS) ---- */
+  var PDF_SIDE = 3400, PDF_AREA = 13000000, PDF_Q = 0.92;
+  var TH_SIDE = 600, TH_Q = 0.8;
+
+  function pageScale(v1, side, area) {
+    var k = (side || PDF_SIDE) / Math.max(1, Math.max(v1.width, v1.height));
+    var px = v1.width * v1.height * k * k;
+    var lim = area || PDF_AREA;
+    if (px > lim) k *= Math.sqrt(lim / px);
+    return Math.max(0.05, Math.min(6, k));
+  }
+
+  function renderPage(doc, n, opt) {
+    opt = opt || {};
+    var side = opt.side || PDF_SIDE, area = opt.area || PDF_AREA, q = opt.q || PDF_Q;
     return doc.getPage(n).then(function (pg) {
       var v1 = pg.getViewport({ scale: 1 });
-      var k = Math.min(4, 2000 / Math.max(v1.width, v1.height));
-      var v = pg.getViewport({ scale: k });
+      var v = pg.getViewport({ scale: pageScale(v1, side, area) });
       var cv = document.createElement('canvas');
-      cv.width = Math.round(v.width);
-      cv.height = Math.round(v.height);
+      cv.width = Math.max(1, Math.round(v.width));
+      cv.height = Math.max(1, Math.round(v.height));
       var cx = cv.getContext('2d');
       cx.fillStyle = '#fff';
       cx.fillRect(0, 0, cv.width, cv.height);
-      return pg.render({ canvasContext: cx, viewport: v }).promise.then(function () {
-        return new Promise(function (res) { cv.toBlob(res, 'image/jpeg', 0.86); });
-      }).then(function (blob) {
-        cv.width = cv.height = 0;
+      var free = function () {
+        try { cv.width = 0; cv.height = 0; } catch (e) {}
         try { pg.cleanup(); } catch (e) {}
-        return blob;
-      });
+      };
+      return pg.render({ canvasContext: cx, viewport: v }).promise.then(function () {
+        return new Promise(function (res) { cv.toBlob(res, 'image/jpeg', q); });
+      }).then(function (blob) { free(); return blob; }, function (e) { free(); throw e; });
     });
   }
 
-  function guessStage(name, isImg) {
+  /* маленькое превью для плиток: в просмотре всё равно открывается полный файл */
+  function thumbOf(blob, side, q) {
+    return new Promise(function (res) {
+      if (!blob) { res(null); return; }
+      var u = URL.createObjectURL(blob), im = new Image();
+      im.onload = function () {
+        var c = null;
+        try {
+          var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+          var k = Math.min(1, (side || TH_SIDE) / Math.max(1, Math.max(w, h)));
+          if (k >= 0.98) { URL.revokeObjectURL(u); res(null); return; }
+          c = document.createElement('canvas');
+          c.width = Math.round(w * k);
+          c.height = Math.round(h * k);
+          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(u);
+          c.toBlob(function (b) {
+            try { c.width = 0; c.height = 0; } catch (e) {}
+            res(b || null);
+          }, 'image/jpeg', q || TH_Q);
+        } catch (e) {
+          try { URL.revokeObjectURL(u); } catch (x) {}
+          res(null);
+        }
+      };
+      im.onerror = function () { try { URL.revokeObjectURL(u); } catch (e) {} res(null); };
+      im.src = u;
+    });
+  }
+
+  /* ---- увеличенная страница из сохранённого оригинала (кэш на несколько штук) ---- */
+  var HIC = { url: {}, doc: {}, order: [], max: 6 };
+
+  function srcBlob(a, id) {
+    if (a && a.get) return a.get(id).then(function (b) { return b; });
+    return fetch(bUrl(id)).then(function (r) { return r.blob(); });
+  }
+  function hiDoc(srcId) {
+    if (HIC.doc[srcId]) return Promise.resolve(HIC.doc[srcId]);
+    return Promise.all([loadPdfJs(), asGet()]).then(function (r) {
+      var lib = r[0], a = r[1];
+      if (!a) throw new Error('no storage');
+      return srcBlob(a, srcId).then(function (b) {
+        if (!b) throw new Error('no file');
+        return b.arrayBuffer();
+      }).then(function (buf) { return lib.getDocument({ data: buf }).promise; });
+    }).then(function (doc) {
+      HIC.doc[srcId] = doc;
+      var keys = Object.keys(HIC.doc);
+      if (keys.length > 2) {
+        var k0 = keys[0];
+        if (k0 !== srcId) { try { HIC.doc[k0].destroy(); } catch (e) {} delete HIC.doc[k0]; }
+      }
+      return doc;
+    });
+  }
+  function hiDocFresh(srcId) {
+    if (HIC.doc[srcId]) { try { HIC.doc[srcId].destroy(); } catch (e) {} delete HIC.doc[srcId]; }
+    return hiDoc(srcId);
+  }
+  function hiUrl(srcId, page) {
+    var key = srcId + '|' + page;
+    if (HIC.url[key]) return Promise.resolve(HIC.url[key]);
+    return hiDoc(srcId).then(function (doc) {
+      return renderPage(doc, page, { side: 4200, area: 16000000, q: 0.92 });
+    }).then(function (blob) {
+      var u = URL.createObjectURL(blob);
+      if (HIC.order.length >= HIC.max) {
+        var old = HIC.order.shift(), ou = HIC.url[old];
+        if (ou) { try { URL.revokeObjectURL(ou); } catch (e) {} }
+        delete HIC.url[old];
+      }
+      HIC.url[key] = u;
+      HIC.order.push(key);
+      return u;
+    });
+  }
+  window.studioHiPage = hiUrl;
+
+  /* к какой странице какого оригинала относится картинка */
+  function pageSrc(p, id) {
+    var out = null;
+    (p.src || []).forEach(function (s) {
+      if (out || !s || !s.pg) return;
+      var k = s.pg.indexOf(id);
+      if (k >= 0) out = { src: s.id, pg: k + 1 };
+    });
+    return out;
+  }
+
+  function guessStage(name, isImg, kind) {
     var n = String(name || '').toLowerCase().replace(/ё/g, 'е');
+    if (kind === 'r') {
+      var RR = [[/до ремонта|до работ|исходн/, 'pre'], [/демонтаж|снос|разбор/, 'demo'],
+        [/чернов|стяжк|штукатур|каркас|гкл|гипсокартон|гидроизол|пароизол/, 'rough'],
+        [/инженер|электр|сантех|вентил|кондицион|отоплен|узел|щит|труб/, 'eng'],
+        [/чистов|плитк|керамогранит|краск|обои|паркет|ламинат|двер|мебел/, 'fin'],
+        [/результ|готов|после ремонта|интерьер/, 'done']];
+      for (var j = 0; j < RR.length; j++) if (RR[j][0].test(n)) return RR[j][1];
+      return DS.last || '';
+    }
     var R = [[/обмер/, 'meas'], [/концепц|мудборд|moodboard|референс/, 'conc'], [/планир/, 'plan'], [/визуал|рендер|render|3d/, 'vis'],
       [/чертеж|рабоч|раздел/, 'work'], [/ведомост|специф/, 'spec'], [/комплект|меблир/, 'comp'], [/план/, 'plan']];
     for (var i = 0; i < R.length; i++) if (R[i][0].test(n)) return R[i][1];
@@ -881,7 +1118,7 @@
       pid: p.id,
       items: files.map(function (f) {
         var isPdf = /pdf/i.test(f.type) || /\.pdf$/i.test(f.name);
-        return { f: f, pdf: isPdf, s: guessStage(f.name, !isPdf) };
+        return { f: f, pdf: isPdf, s: guessStage(f.name, !isPdf, p.kind) };
       })
     };
     askStages();
@@ -890,8 +1127,9 @@
     U.sheet(function () {
       var Q = DS.q;
       if (!Q) return { t: 'Этап проекта', b: '' };
+      var proj = pfGet(Q.pid), kind = proj && proj.kind === 'r' ? 'r' : 'd';
       var opts = function (cur) {
-        return '<option value="">Без этапа</option>' + stgAll().map(function (s) {
+        return '<option value="">' + 'Без этапа' + '</option>' + stgList(kind).map(function (s) {
           return '<option value="' + esc(s[0]) + '"' + (s[0] === cur ? ' selected' : '') + '>' + esc(s[1]) + '</option>';
         }).join('');
       };
@@ -903,7 +1141,8 @@
       return {
         t: 'К какому этапу относится',
         b: U.grp(rows) + '<div style="margin-top:10px"><button class="chip lt2" type="button"' + U.on(function () { newStage(function () { askStages(); }); }) + '>+ Свой этап</button></div>' +
-          '<div class="cp" style="margin-top:10px">Этап подобран по названию файла. Если в PDF несколько этапов, страницы можно потом перенести между этапами.</div>',
+          '<div class="cp" style="margin-top:10px">Этап подобран по названию файла. ' +
+          (kind === 'r' ? 'Фото разных этапов можно перенести потом в карточке.' : 'Если в PDF несколько этапов, страницы можно потом перенести между этапами.') + '</div>',
         f: '<button class="btn g2"' + U.on(function () { DS.q = null; U.closeS(); }) + '>Отмена</button><button class="btn"' + U.on(function () { U.closeS(); runImport(); }) + '>Загрузить</button>'
       };
     });
@@ -928,9 +1167,9 @@
     });
     setTimeout(function () { var e = document.getElementById('stgn'); if (e) e.focus(); }, 350);
   }
-  function stagePick(title, cur, cb) {
+  function stagePick(title, cur, cb, kind) {
     U.sheet(function () {
-      var S = stgAll().concat([['', 'Без этапа']]);
+      var S = stgList(kind).concat([['', 'Без этапа']]);
       return {
         t: esc(title),
         b: U.grp(S.map(function (s) {
@@ -949,26 +1188,49 @@
       if (!a) { toast('Загрузка файлов недоступна в этом окне'); return; }
       DS.busy = true;
       DS.q = null;
-      p.ph = p.ph || []; p.ps = p.ps || {}; p.pn = p.pn || {};
+      p.ph = p.ph || []; p.ps = p.ps || {}; p.pn = p.pn || {}; p.th = p.th || {}; p.src = p.src || [];
       var items = Q.items, total = 0, bad = 0;
       var say = function (t) { var e = document.getElementById('pgprog'); if (e) e.textContent = t; };
       try { U.R(); } catch (e) {}
-      var addPage = function (blob, it, num) {
+      var addPage = function (blob, it, num, src) {
         return a.upload(blob).then(function (r) {
-          if (r && r.id) { p.ph.push(r.id); p.ps[r.id] = it.s || ''; p.pn[r.id] = [it.f.name, num]; total++; pfSave(); }
-          else bad++;
+          if (!r || !r.id) { bad++; return; }
+          p.ph.push(r.id);
+          p.ps[r.id] = it.s || '';
+          p.pn[r.id] = [it.f.name, num || 0];
+          if (src && src.pg) src.pg.push(r.id);
+          total++;
+          pfSave();
+          return thumbOf(blob, TH_SIDE, TH_Q).then(function (tb) {
+            if (!tb) return;
+            return a.upload(tb).then(function (tr) {
+              if (tr && tr.id) { p.th[r.id] = tr.id; pfSave(); }
+            }, function () {});
+          }, function () {});
         }, function () { bad++; });
       };
       var doPdf = function (it, fi) {
-        return loadPdfJs().then(function (lib) {
-          return it.f.arrayBuffer().then(function (buf) { return lib.getDocument({ data: buf }).promise; });
+        var buf = null, src = null;
+        say('Файл ' + (fi + 1) + ' из ' + items.length + ' · читаю PDF');
+        return it.f.arrayBuffer().then(function (b) {
+          buf = b;
+          /* оригинал кладём в хранилище: из него можно перерисовать страницы крупнее */
+          return a.upload(it.f).then(function (r) {
+            if (r && r.id) { src = { id: r.id, name: it.f.name, at: Date.now(), pg: [] }; p.src.push(src); pfSave(); }
+          }, function () {});
+        }, function () { return null; }).then(function () {
+          if (!buf) throw new Error('read');
+          return loadPdfJs();
+        }).then(function (lib) {
+          /* pdf.js забирает буфер себе — отдаём копию */
+          return lib.getDocument({ data: buf.slice(0) }).promise;
         }).then(function (doc) {
-          var n = 1;
+          var n = 1, num = doc.numPages;
           var step = function () {
-            if (n > doc.numPages) { try { doc.destroy(); } catch (e) {} return Promise.resolve(); }
-            say('Файл ' + (fi + 1) + ' из ' + items.length + ' · страница ' + n + ' из ' + doc.numPages);
+            if (n > num) { try { doc.destroy(); } catch (e) {} return Promise.resolve(); }
+            say('Файл ' + (fi + 1) + ' из ' + items.length + ' · страница ' + n + ' из ' + num);
             var cur = n++;
-            return renderPage(doc, cur).then(function (blob) { return addPage(blob, it, cur); }, function () { bad++; }).then(step);
+            return renderPage(doc, cur).then(function (blob) { return addPage(blob, it, cur, src); }, function () { bad++; }).then(step);
           };
           return step();
         }, function () { bad++; toast('Не получилось открыть ' + it.f.name + '. Для PDF нужен интернет'); });
@@ -985,11 +1247,132 @@
       };
       next().then(function () {
         DS.busy = false;
+        /* замена файла: старые страницы убираем только после успешного импорта */
+        var rep = DS.rep;
+        DS.rep = null;
+        if (rep && total) {
+          rep.ids.forEach(function (id) {
+            p.ph = (p.ph || []).filter(function (x) { return x !== id; });
+            if (p.ps) delete p.ps[id];
+            if (p.pn) delete p.pn[id];
+            var th = p.th && p.th[id];
+            if (p.th) delete p.th[id];
+            if (a) {
+              try { a['delete'](id); } catch (e) {}
+              if (th) { try { a['delete'](th); } catch (e) {} }
+            }
+          });
+        }
         pfSave();
         try { U.R(); } catch (e) {}
         toast(total ? 'Добавлено страниц: ' + total + (bad ? ' · ошибок ' + bad : '') : 'Ничего не добавлено');
-      }, function () { DS.busy = false; try { U.R(); } catch (e) {} toast('Загрузка прервалась'); });
+      }, function () { DS.rep = null; DS.busy = false; try { U.R(); } catch (e) {} toast('Загрузка прервалась'); });
     });
+  }
+
+  /* ---- «Обновить качество»: перерисовать страницы из сохранённого PDF ---- */
+  function refreshQuality(p) {
+    if (DS.busy) { toast('Идет загрузка, подождите'); return; }
+    var srcs = (p.src || []).filter(function (s) { return s && s.id && s.pg && s.pg.length; });
+    if (!srcs.length) { legacyQuality(p); return; }
+    asGet().then(function (a) {
+      if (!a) { toast('Хранилище недоступно'); return; }
+      if (!a.put) { toast('Обновите приложение и повторите'); return; }
+      DS.busy = true;
+      var say = function (t) { var e = document.getElementById('pgprog'); if (e) e.textContent = t; };
+      try { U.R(); } catch (e) {}
+      var done = 0, chain = Promise.resolve();
+      srcs.forEach(function (s) {
+        chain = chain.then(function () {
+          return hiDocFresh(s.id).then(function (doc) {
+            var k = 0;
+            var step = function () {
+              if (k >= s.pg.length) {
+                if (HIC.doc[s.id] === doc) delete HIC.doc[s.id];
+                try { doc.destroy(); } catch (e) {}
+                return Promise.resolve();
+              }
+              var id = s.pg[k], page = k + 1;
+              k++;
+              if (p.ph.indexOf(id) < 0) return step();
+              say('Обновляю ' + s.name + ' · страница ' + page + ' из ' + s.pg.length);
+              return renderPage(doc, page).then(function (blob) {
+                return a.put(id, blob).then(function () {
+                  done++;
+                  return thumbOf(blob, TH_SIDE, TH_Q).then(function (tb) {
+                    if (!tb) return;
+                    var old = p.th && p.th[id];
+                    return a.upload(tb).then(function (tr) {
+                      p.th = p.th || {};
+                      p.th[id] = tr.id;
+                      if (old) { try { a['delete'](old); } catch (e) {} }
+                      pfSave();
+                    }, function () {});
+                  }, function () {});
+                });
+              }, function () { return null; }).then(step, step);
+            };
+            return step();
+          });
+        });
+      });
+      chain.then(function () {
+        DS.busy = false;
+        pfSave();
+        try { U.R(); } catch (e) {}
+        toast(done ? 'Обновлено страниц: ' + done : 'Не удалось обновить');
+        /* остались страницы без оригинала (старые загрузки) — предложим загрузить PDF заново */
+        var left = (p.ph || []).filter(function (id) { return !pageSrc(p, id); });
+        if (left.length) setTimeout(function () { legacyQuality(p); }, 700);
+      }, function () {
+        DS.busy = false;
+        try { U.R(); } catch (e) {}
+        toast('Обновление прервалось');
+      });
+    });
+  }
+
+  /* старые проекты: оригинала нет — предлагаем загрузить PDF этого файла заново */
+  function legacyQuality(p) {
+    var byName = {}, order = [];
+    (p.ph || []).forEach(function (id) {
+      var m = p.pn && p.pn[id], nm = m && m[0] ? m[0] : '';
+      if (!nm || !/\.pdf$/i.test(nm)) return;
+      if (!byName[nm]) { byName[nm] = []; order.push(nm); }
+      byName[nm].push(id);
+    });
+    if (!order.length) { toast('Оригинал PDF не сохранён'); return; }
+    U.sheet(function () {
+      return {
+        t: 'Заменить страницы файла',
+        b: U.grp(order.map(function (nm) {
+          var n = byName[nm].length;
+          return U.row({
+            t: esc(nm), s: n + ' ' + plr(n, 'страница', 'страницы', 'страниц') + ' · оригинал не сохранён',
+            fn: function () { U.closeS(1); pickReplace(p, nm, byName[nm]); }
+          });
+        }).join('')) + '<div class="cp" style="margin:10px 2px 0">Выберите тот же PDF: страницы этого файла заменятся на новые, крупные. Этап сохранится.</div>',
+        f: '<button class="btn g2"' + U.on(function () { U.closeS(); }) + '>Отмена</button>'
+      };
+    });
+  }
+  function pickReplace(p, name, ids) {
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'application/pdf,.pdf';
+    inp.style.display = 'none';
+    inp.onchange = function () {
+      var f = inp.files && inp.files[0];
+      if (inp.parentNode) inp.parentNode.removeChild(inp);
+      if (!f) return;
+      var st = (p.ps && p.ps[ids[0]]) || '';
+      /* старые страницы уберём после того, как новый PDF импортируется */
+      DS.rep = { pid: p.id, ids: ids.slice() };
+      DS.q = { pid: p.id, items: [{ f: f, pdf: true, s: st }] };
+      runImport();
+    };
+    document.body.appendChild(inp);
+    inp.click();
   }
 
   /* ---- блок в карточке редактирования дизайн-проекта ---- */
@@ -1002,6 +1385,9 @@
       '<label class="btn g2" style="flex:1">Изображения<input type="file" accept="image/*" multiple style="display:none" onchange="' +
       U.f(function (e, el) { var f = [].slice.call(el.files); el.value = ''; pickFiles(p, f, 'img'); }) + '"></label></div>';
     if (DS.busy) h += '<div class="cp" id="pgprog" style="margin:0 2px 10px">Готовлю страницы…</div>';
+    if (S.length) h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
+      '<button class="chip lt2" type="button"' + U.on(function () { refreshQuality(p); }) + '>Обновить качество</button>' +
+      ((p.src || []).length ? '<span class="cp">оригинал сохранён</span>' : '<span class="cp">оригинала нет</span>') + '</div>';
     if (!S.length) return h + '<div class="cp" style="margin:0 2px">Загрузите PDF проекта: страницы станут картинками, их можно разложить по этапам (планировки, визуализации, чертежи).</div>';
     h += U.grp(S.map(function (s) {
       return U.row({
@@ -1022,7 +1408,7 @@
     S.forEach(function (s) {
       h += U.sh(esc(s.n), '<span class="cp">' + s.ids.length + '</span>') +
         '<div class="pgst">' + s.ids.map(function (id) {
-          return '<img loading="lazy" decoding="async" src="' + bUrl(id) + '"' + U.on(function () {
+          return '<img loading="lazy" decoding="async" src="' + bUrl(((p.th || {})[id]) || id) + '"' + U.on(function () {
             var i = 0;
             all.forEach(function (it, k) { if (it.id === id) i = k; });
             pgView(all, i);
@@ -1036,10 +1422,13 @@
   function stageScreen(a) {
     var p = pfGet(a.p);
     if (!p) return U.nv('Проект') + '<div class="empty"><b>Проект удален</b></div>';
+    var isR = p.kind === 'r';
+    var unit = isR ? 'фото' : 'страница';
+    var many = function (n) { return isR ? n + ' фото' : n + ' ' + plr(n, 'страница', 'страницы', 'страниц'); };
     var ids = p.ph.filter(function (id) { return stageOf(p, id) === a.k; });
     DS.sel = DS.sel.filter(function (id) { return ids.indexOf(id) >= 0; });
-    var h = U.nv('Проект', '<button class="ib tx"' + U.on(function () { DS.selOn = !DS.selOn; DS.sel = []; U.R(); }) + '>' + (DS.selOn ? 'Готово' : 'Выбрать') + '</button>');
-    h += '<div class="mt">' + esc(stgName(a.k)) + '</div><div class="cp" style="margin-bottom:12px">' + ids.length + ' ' + plr(ids.length, 'страница', 'страницы', 'страниц') + '</div>';
+    var h = U.nv(isR ? 'Назад' : 'Проект', '<button class="ib tx"' + U.on(function () { DS.selOn = !DS.selOn; DS.sel = []; U.R(); }) + '>' + (DS.selOn ? 'Готово' : 'Выбрать') + '</button>');
+    h += '<div class="mt">' + esc(stgName(a.k, isR ? 'r' : 'd')) + '</div><div class="cp" style="margin-bottom:12px">' + many(ids.length) + '</div>';
     if (DS.selOn) {
       var n = DS.sel.length;
       h += '<div class="pgbar"><div class="chips">' +
@@ -1052,7 +1441,7 @@
             DS.sel = [];
             pfSave();
             U.R();
-          });
+          }, isR ? 'r' : 'd');
         }) + '>Перенести: ' + n + '</button>';
       }
       if (n === 1) {
@@ -1068,7 +1457,7 @@
           '<button class="chip sm lt2"' + U.on(function () { swap(1); }) + '>Позже</button>' +
           '<button class="chip sm lt2"' + U.on(function () {
             p.ph = [id1].concat(p.ph.filter(function (x) { return x !== id1; }));
-            pfSave(); toast('Страница стала обложкой проекта'); U.R();
+            pfSave(); toast(isR ? 'Фото стало обложкой' : 'Страница стала обложкой проекта'); U.R();
           }) + '>Обложка</button>';
       }
       if (n) {
@@ -1080,16 +1469,28 @@
           DS.sel = [];
           pfSave();
           U.R();
-          asGet().then(function (as) { if (as) gone.forEach(function (x) { try { as.delete(x); } catch (e) {} }); });
+          asGet().then(function (as) {
+            if (!as) return;
+            gone.forEach(function (x) {
+              var th = p.th && p.th[x];
+              try { as['delete'](x); } catch (e) {}
+              if (th) { try { as['delete'](th); } catch (e) {} }
+              if (p.th) delete p.th[x];
+            });
+            pfSave();
+          });
         }) + '>Удалить</button>';
       }
       h += '</div></div>';
     }
-    if (!ids.length) return h + '<div class="empty"><b>В этом этапе страниц нет</b>Добавьте PDF в карточке проекта</div>';
-    var list = ids.map(function (id) { return { id: id, s: a.k, n: stgName(a.k), l: pgLabel(p, id) }; });
+    if (!ids.length) return h + '<div class="empty"><b>' + (isR ? 'В этом этапе фото нет' : 'В этом этапе страниц нет') + '</b>' + (isR ? 'Добавьте фото в карточке' : 'Добавьте PDF в карточке проекта') + '</div>';
+    var list = ids.map(function (id) {
+      var m = pageSrc(p, id);
+      return { id: id, s: a.k, n: stgName(a.k, isR ? 'r' : 'd'), l: pgLabel(p, id), th: (p.th || {})[id] || '', src: m ? m.src : '', pg: m ? m.pg : 0 };
+    });
     h += '<div class="pgg">' + ids.map(function (id, i) {
       var on = DS.sel.indexOf(id) >= 0, lb = pgLabel(p, id);
-      return '<div class="pgi' + (on ? ' on' : '') + '" style="background-image:url(' + bUrl(id) + ')"' + U.on(function () {
+      return '<div class="pgi' + (on ? ' on' : '') + '" style="background-image:url(' + bUrl(((p.th || {})[id]) || id) + ')"' + U.on(function () {
         if (DS.selOn) {
           var q = DS.sel.indexOf(id);
           if (q >= 0) DS.sel.splice(q, 1); else DS.sel.push(id);
@@ -1133,6 +1534,290 @@
     U.S.pstage = stageScreen;
   }
 
+  /* ================= реализация: фото по этапам, мозаика, карточки ================= */
+  var RZS = {};
+
+  function rzCss() {
+    if (document.getElementById('studio-rz-css')) return;
+    var s = document.createElement('style');
+    s.id = 'studio-rz-css';
+    s.textContent = [
+      '.rzh{height:400px}',
+      '.rzh .rzsh{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.42) 0%,rgba(0,0,0,0) 30%,rgba(9,10,12,.32) 66%,rgba(9,10,12,.94) 100%)}',
+      '.rzh .bt{background:none}',
+      '.rzt{display:flex;gap:7px;overflow-x:auto;margin:14px -16px 4px;padding:2px 16px 4px;scrollbar-width:none}',
+      '.rzt::-webkit-scrollbar{display:none}',
+      '.rzt .chip{flex:none}',
+      '.rzg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:0 -16px 6px;padding:0 16px}',
+      '.rzg .rzp{position:relative;aspect-ratio:1;border-radius:11px;overflow:hidden;border:0;padding:0;background:var(--s2);display:block;width:100%}',
+      '.rzg .rzp img{width:100%;height:100%;object-fit:cover;display:block;animation:rzin .35s ease both}',
+      '.rzg .rzp.big{grid-column:span 2;grid-row:span 2;border-radius:14px}',
+      '@keyframes rzin{from{opacity:0}to{opacity:1}}',
+      '@media(max-width:359px){.rzg{grid-template-columns:repeat(2,1fr)}}',
+      '.rzw{display:flex;flex-wrap:wrap;gap:7px;align-items:flex-start}',
+      '.rzmore{border:0;background:none;color:var(--ac2);font-size:14px;padding:6px 2px;align-self:center}',
+      '.rzmat{color:var(--t2);line-height:23px;margin:0;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
+      '.rzmat.on{display:block;-webkit-line-clamp:unset}',
+      '.rzc{background:var(--s1);border-radius:14px;overflow:hidden}',
+      '.rzc .rzci{aspect-ratio:4/3;background:var(--s2) center/cover no-repeat;position:relative}',
+      '.rzc .rzci i{position:absolute;right:7px;top:7px;font-style:normal;font-size:11px;font-weight:600;background:rgba(0,0,0,.5);color:#fff;border-radius:8px;padding:2px 6px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}',
+      '.rzc b{display:block;font-size:15px;line-height:19px;font-weight:600;padding:9px 11px 0;overflow:hidden;max-height:47px}',
+      '.rzc span{display:block;font-size:12.5px;line-height:16px;color:var(--t2);padding:3px 11px 11px;overflow:hidden;max-height:35px}',
+      '.rzgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}',
+      '.ed.rz{display:grid;grid-template-columns:1fr 1fr;gap:10px;overflow:visible;margin:0;padding:0}'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  function rzState(p) {
+    var s = RZS[p.id];
+    if (!s) { s = { f: null, w: 0, t: 0, m: 0 }; RZS[p.id] = s; }
+    return s;
+  }
+  function rzBg(p, id) {
+    var th = p.th && p.th[id];
+    return th ? 'background-image:url(' + bUrl(th) + ')' : (id ? 'background-image:url(' + bUrl(id) + ')' : '');
+  }
+  function rzIds(p) {
+    var a = [];
+    stagesOf(p).forEach(function (g) { a = a.concat(g.ids); });
+    return a;
+  }
+  function rzFacts(p) {
+    var f = [], n = (p.ph || []).length, w = (p.works || []).length;
+    if (p.addr) f.push(p.addr);
+    if (p.area) f.push(p.area + ' м²');
+    if (n) f.push(n + ' ' + plr(n, 'фото', 'фото', 'фото'));
+    if (w) f.push(w + ' ' + plr(w, 'работа', 'работы', 'работ'));
+    return f;
+  }
+  /* список для просмотра: все фото в порядке групп, с привязкой к оригиналу для крупного рендера */
+  function rzList(p) {
+    var out = [];
+    stagesOf(p).forEach(function (g) {
+      g.ids.forEach(function (id) {
+        var m = pageSrc(p, id);
+        out.push({ id: id, th: (p.th || {})[id] || '', s: g.k || null, n: g.k ? g.n : '',
+          l: '', src: m ? m.src : '', pg: m ? m.pg : 0 });
+      });
+    });
+    return out;
+  }
+
+  function rzTile(p, id, idx, big) {
+    var th = (p.th && p.th[id]) || id;
+    return '<button class="rzp' + (big ? ' big' : '') + '" type="button"' + U.on(function () {
+      pgView(rzList(p), Math.max(0, idx || 0));
+    }) + '><img loading="lazy" decoding="async" alt="" src="' + bUrl(th) + '"></button>';
+  }
+
+  function rzWorks(p) {
+    var w = p.works || [];
+    if (!w.length) return '';
+    var st = rzState(p), lim = st.w ? w.length : 6;
+    var h = U.sh('Выполненные работы', w.length > 6 ? '<span class="cp">' + w.length + '</span>' : '');
+    h += '<div class="rzw">' + w.slice(0, lim).map(function (x) {
+      return '<span class="chip lt2 sm">' + esc(x) + '</span>';
+    }).join('');
+    if (w.length > 6) {
+      h += st.w
+        ? '<button class="rzmore" type="button"' + U.on(function () { st.w = 0; U.R(); }) + '>свернуть</button>'
+        : '<button class="rzmore" type="button"' + U.on(function () { st.w = 1; U.R(); }) + '>ещё ' + (w.length - 6) + '</button>';
+    }
+    return h + '</div>';
+  }
+
+  function rzMats(p) {
+    if (!p.mats) return '';
+    var st = rzState(p);
+    return U.sh('Материалы') +
+      '<p class="rzmat' + (st.m ? ' on' : '') + '"' + U.on(function () { st.m = st.m ? 0 : 1; U.R(); }) + '>' + esc(p.mats) + '</p>';
+  }
+
+  function rzTags(p) {
+    var T = U.pTags(p);
+    if (!T.length) return '';
+    var st = rzState(p), lim = st.t ? T.length : 8;
+    var h = U.sh('Решения', T.length > 8 ? '<span class="cp">' + T.length + '</span>' : '');
+    h += '<div class="rzw">' + T.slice(0, lim).map(function (t) {
+      return '<button class="chip sm' + (U.pf.indexOf(t.id) >= 0 ? ' hit' : ' lt2') + '" type="button"' + U.on(function () {
+        U.pv = 'r'; U.pf = [t.id]; U.goTab('port');
+      }) + '>' + esc(t.n) + '</button>';
+    }).join('');
+    if (T.length > 8) {
+      h += st.t
+        ? '<button class="rzmore" type="button"' + U.on(function () { st.t = 0; U.R(); }) + '>свернуть</button>'
+        : '<button class="rzmore" type="button"' + U.on(function () { st.t = 1; U.R(); }) + '>ещё ' + (T.length - 8) + '</button>';
+    }
+    return h + '</div>';
+  }
+
+  function rzProj(p) {
+    rzCss();
+    var st = rzState(p);
+    p.th = p.th || {};
+    var groups = stagesOf(p), all = rzIds(p);
+    var cover = (p.ph || [])[0] || '';
+    var h = '<div class="hero rzh" style="' + (cover ? '' : 'height:250px;') + rzBg(p, cover) + '">' +
+      '<div class="rzsh"></div>' +
+      '<div class="tp"><button class="ib ov"' + U.on(U.back) + '>' + U.I('bk', 20) + '</button>' +
+      '<div style="display:flex;gap:8px">' +
+      '<button class="ib ov tx"' + U.on(function () { U.pickSheet(p.id); }) + '>' + U.I('pl', 16) + 'В подборку</button>' +
+      '<button class="ib ov"' + U.on(function () { U.go('pedit', p.id); }) + '>' + U.I('pe', 17) + '</button>' +
+      '</div></div>' +
+      '<div class="bt"><div class="mt" style="font-size:29px;line-height:33px">' + esc(p.title || 'Без названия') + '</div>' +
+      '<div class="cp" style="color:#d8d8dc;font-size:14.5px;margin-top:4px">' + esc(rzFacts(p).join(' · ')) + '</div></div></div>';
+
+    if (!all.length) {
+      h += '<div class="empty" style="padding:28px 16px"><b>Фотографий пока нет</b>Добавьте снимки — они соберутся в мозаику по этапам</div>';
+    } else {
+      /* null — «Все»; ключ группы может быть '' (фото без этапа), поэтому не путаем их */
+      var fl = st.f;
+      if (groups.length > 1) {
+        var tab = function (k, name, n) {
+          return '<button class="chip sm' + (fl === k ? ' on' : ' lt2') + '" type="button"' + U.on(function () {
+            st.f = fl === k ? null : k; U.R();
+          }) + '>' + esc(name) + ' · ' + n + '</button>';
+        };
+        h += '<div class="rzt">' + tab(null, 'Все', all.length) + groups.map(function (g) {
+          return tab(g.k, g.n, g.ids.length);
+        }).join('') + '</div>';
+      }
+      var list = groups.filter(function (g) { return fl === null || g.k === fl; });
+      /* позиция плитки в общем списке: считаем по группам, а не по id (id может повториться) */
+      var off = {}, acc = 0;
+      groups.forEach(function (g) { off[g.k] = acc; acc += g.ids.length; });
+      list.forEach(function (g) {
+        var big = g.ids.length >= 5 ? g.ids[0] : '';
+        h += U.sh(esc(g.n), '<span class="cp">' + g.ids.length + '</span>');
+        h += '<div class="rzg">' + g.ids.map(function (id, j) {
+          return rzTile(p, id, (off[g.k] || 0) + j, id === big);
+        }).join('') + '</div>';
+      });
+    }
+
+    if (p.desc) h += U.sh('О проекте') + '<p style="color:var(--t2);line-height:24px;margin:0;white-space:pre-wrap">' + esc(p.desc) + '</p>';
+    h += rzWorks(p) + rzMats(p) + rzTags(p);
+
+    var lk = p.link ? pfGet(p.link) : null;
+    var back = PF.items.filter(function (x) { return x.link === p.id; });
+    if (lk) {
+      h += U.sh('По дизайн-проекту') + U.grp(U.row({
+        th: '', thS: U.bg(lk.ph && lk.ph[0], lk.id), t: esc(lk.title || 'Без названия'),
+        s: 'Дизайн-проект', fn: function () { U.go('proj', lk.id); }
+      }));
+    }
+    if (back.length) {
+      h += U.sh('Связанные проекты') + U.grp(back.map(function (b) {
+        return U.row({
+          th: '', thS: U.bg(b.ph && b.ph[0], b.id), t: esc(b.title || 'Без названия'),
+          s: 'Реализация', fn: function () { U.go('proj', b.id); }
+        });
+      }).join(''));
+    }
+    return h;
+  }
+
+  function rzCard(p) {
+    var id = (p.ph || [])[0] || '';
+    var n = (p.ph || []).length;
+    var facts = [p.area ? p.area + ' м²' : '', (p.works || []).slice(0, 2).join(', ')].filter(Boolean).join(' · ');
+    return '<div class="rzc"' + U.on(function () { U.go('proj', p.id); }) + '>' +
+      '<div class="rzci" style="' + (id ? rzBg(p, id) : '') + '">' + (n > 1 ? '<i>' + n + '</i>' : '') + '</div>' +
+      '<b>' + esc(p.title || 'Без названия') + '</b>' +
+      (facts ? '<span>' + esc(facts) + '</span>' : '<span>' + esc([p.addr || '', n ? n + ' фото' : ''].filter(Boolean).join(' · ')) + '</span>') +
+      '</div>';
+  }
+
+  /* ---- редактирование реализации: загрузка с выбором этапа + список этапов ---- */
+  function rzEdit(p) {
+    rzCss();
+    p.th = p.th || {};
+    var S = stagesOf(p), n = (p.ph || []).length, h = '';
+    h += U.sh('Фото', '<span class="cp">' + (n ? n + ' · первое — обложка' : 'по этапам') + '</span>');
+    h += '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      '<label class="btn" style="flex:1">' + U.I('pl', 18) + 'Добавить фото<input type="file" accept="image/*" multiple style="display:none" onchange="' +
+      U.f(function (e, el) { var f = [].slice.call(el.files); el.value = ''; pickFiles(p, f, 'img'); }) + '"></label>' +
+      '<label class="btn g2" style="flex:1">PDF<input type="file" accept="application/pdf,.pdf" multiple style="display:none" onchange="' +
+      U.f(function (e, el) { var f = [].slice.call(el.files); el.value = ''; pickFiles(p, f, 'pdf'); }) + '"></label></div>';
+    if (DS.busy) h += '<div class="cp" id="pgprog" style="margin:0 2px 10px">Готовлю фото…</div>';
+    if (!S.length) return h + '<div class="cp" style="margin:0 2px">Добавьте фото: при загрузке выберете этап, а в карточке они соберутся в мозаику.</div>';
+    h += U.grp(S.map(function (s) {
+      return U.row({
+        th: '', thS: rzBg(p, s.ids[0]), t: esc(s.n),
+        s: s.ids.length + ' ' + plr(s.ids.length, 'фото', 'фото', 'фото'),
+        fn: function () { DS.sel = []; DS.selOn = false; U.go('pstage', { p: p.id, k: s.k }); }
+      });
+    }).join(''));
+    h += '<div class="cp" style="margin:10px 2px 0">Внутри этапа: выбрать, перенести, поменять порядок, сделать обложкой, удалить.</div>';
+    return h;
+  }
+
+  /* ---- каталог: реализации плитками в две колонки ---- */
+  function rzPort() {
+    rzCss();
+    var L = U.dps('r'), m = U.tagMap();
+    var h = '<div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<div class="lt" style="margin:4px 0 12px">Портфолио</div>' +
+      '<button class="ib"' + U.on(function () { U.pNew('r'); }) + '>' + U.I('pl', 18) + '</button></div>' +
+      U.seg([['d', 'Дизайн-проекты'], ['r', 'Реализация']], U.pv, function (v) { U.pv = v; U.pf = []; U.R(); });
+    h += '<button class="chip lt2" style="display:flex;align-items:center;gap:6px;margin-bottom:12px"' + U.on(U.fltSheet) + '>' +
+      U.I('fl', 17) + 'Подбор по решениям' + (U.pf.length ? ' · ' + U.pf.length : '') + '</button>';
+    if (U.pf.length) {
+      h += '<div class="chips" style="margin-bottom:12px">' + U.pf.map(function (id) {
+        return '<button class="chip on sm"' + U.on(function () { U.fTog(id); }) + '>' + esc(m[id] ? m[id].n : '') + ' ×</button>';
+      }).join('') + '</div>';
+    }
+    if (!L.length) {
+      return h + '<div class="empty"><b>Выполненных работ пока нет</b>Фото узлов, инженерии и отделки. Они продают ремонт.</div>' +
+        '<button class="btn"' + U.on(function () { U.pNew('r'); }) + '>Добавить</button>';
+    }
+    var ex = L.filter(function (p) { return U.pMatch(p).ok; });
+    var list = ex.length ? ex : L;
+    if (!ex.length && U.pf.length) h += '<div class="empty" style="padding:14px"><b>Точных совпадений нет</b>Показаны все работы</div>';
+    h += '<div class="rzgrid">' + list.map(rzCard).join('') + '</div>';
+    return h;
+  }
+
+  function hookRz() {
+    if (!(window.U && U.S && U.S.proj && U.S.pedit && window.PF) || U.S.proj.__rz) return;
+    rzCss();
+    var op = U.S.proj, oe = U.S.pedit, oplate = U.plate, oport = U.S.port;
+    U.S.proj = function (id) {
+      var p = pfGet(id);
+      if (p && p.kind === 'r') {
+        try { return rzProj(p); } catch (e) { try { console.error(e); } catch (x) {} return op.apply(this, arguments); }
+      }
+      return op.apply(this, arguments);
+    };
+    U.S.proj.__rz = 1;
+    U.S.proj.__wrapped = true;
+    U.S.pedit = function (id) {
+      var h = oe.apply(this, arguments), p = pfGet(id);
+      if (!p || p.kind !== 'r') return h;
+      try {
+        p.ph = p.ph || [];
+        var re = /<div class="sh2">Фото<span class="cp">первое - обложка<\/span><\/div>[\s\S]*?(?=<div class="sh2">)/;
+        if (re.test(h)) return h.replace(re, function () { return rzEdit(p); });
+        return h + rzEdit(p);
+      } catch (e) { return h; }
+    };
+    U.S.pedit.__rz = 1;
+    U.S.pedit.__wrapped = true;
+    U.plate = function (p) {
+      if (!p || p.kind !== 'r') return oplate.apply(this, arguments);
+      try { return rzCard(p); } catch (e) { return oplate.apply(this, arguments); }
+    };
+    var basePort = oport;
+    U.S.port = function () {
+      if (U.pv === 'r') {
+        try { return rzPort(); } catch (e) { try { console.error(e); } catch (x) {} return basePort.apply(this, arguments); }
+      }
+      return basePort.apply(this, arguments);
+    };
+    U.S.pstage = stageScreen;
+  }
+
   /* ================= меню ================= */
   function menu() {
     var t = themeName();
@@ -1160,12 +1845,12 @@
     hookUndo();
     hookOpenObj();
     hookHome();
-    hookObjMenu(); hookDesign();
+    hookObjMenu(); hookDesign(); hookRz();
     // догоняем, если приложение уже успело отрисоваться
     var n = 0;
     var t = setInterval(function () {
       n++;
-      applyTheme(); hookUndo(); hookOpenObj(); hookHome(); hookObjMenu(); hookDesign();
+      applyTheme(); hookUndo(); hookOpenObj(); hookHome(); hookObjMenu(); hookDesign(); hookRz();
       if (n > 20) clearInterval(t);
     }, 250);
   }

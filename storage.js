@@ -60,7 +60,19 @@
       if (u) { try { URL.revokeObjectURL(u); } catch (e) {} urls.delete(id); }
       return delBlob(id).catch(function () {});
     },
-    url: function (id) { return Promise.resolve(urls.get(id) || ''); }
+    url: function (id) { return Promise.resolve(urls.get(id) || ''); },
+    /* чтение файла по id — нужно, чтобы перерисовать PDF в большем разрешении */
+    get: function (id) { return getBlob(id); },
+    /* перезапись файла под тем же id — id страниц в проекте остаются прежними */
+    put: function (id, blob) {
+      return putBlob(id, blob).then(function () {
+        var u = urls.get(id);
+        if (u) { try { URL.revokeObjectURL(u); } catch (e) {} }
+        try { urls.set(id, URL.createObjectURL(blob)); } catch (e) {}
+        return id;
+      });
+    },
+    has: function (id) { return getBlob(id).then(function (b) { return !!b; }); }
   };
 
   /* ---------- Подмена функций приложения ---------- */
