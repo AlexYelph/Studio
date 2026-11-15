@@ -27,6 +27,11 @@
     'html[data-theme="light"] .shd,html[data-theme="light"] .sheet{background:#fff !important;color:#1b1b1d !important}',
     'html[data-theme="light"] .ctx div{border-color:rgba(0,0,0,.10) !important}',
     'html[data-theme="light"] .ctx svg{color:#5d5d63}',
+    /* --- дата: прозрачный нативный input поверх строки --- */
+    '.rw.dt{position:relative;overflow:hidden}',
+    '.rw.dt .dv{position:relative;z-index:1;pointer-events:none;margin-left:auto;font-size:17px}',
+    '.rw.dt .dn{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;background:transparent;-webkit-appearance:none;appearance:none;z-index:2;padding:0;margin:0;font-size:16px}',
+    '.rw.dt .dx{position:relative;z-index:3;width:28px;height:28px;border-radius:14px;border:0;background:var(--s3);color:var(--t2);display:flex;align-items:center;justify-content:center;padding:0;flex:none;margin-left:8px}',
     /* --- на обложке всегда тёмный градиент: текст должен быть светлым в любой теме --- */
     '.hero .bt,.hero .bt .mt{color:#fff}',
 
@@ -65,6 +70,68 @@
   }
   window.studioSetTheme = function (t) { localStorage.setItem('studio_theme', t); applyTheme(); };
   window.studioNextTheme = nextTheme;
+
+  /* ================= даты: нативный барабан iOS ================= */
+  function isoShift(years) {
+    var d = new Date();
+    var t = new Date(d.getFullYear() + (years || 0), d.getMonth(), d.getDate());
+    return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+  }
+  window.U && (U.drange = function (back, fwd) {
+    return { min: isoShift(-(back || 0)), max: isoShift(fwd || 0) };
+  });
+  /* ДД.ММ.ГГГГ для печати; не-ISO значения (старый ручной ввод) отдаём как есть */
+  window.U && (U.dt = function (v) {
+    var m = String(v == null ? '' : v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? (m[3] + '.' + m[2] + '.' + m[1]) : (v == null ? '' : String(v));
+  });
+  window.U && (U.drow = function (l, val, cb, auto, o) {
+    o = o || {};
+    var isIso = /^\d{4}-\d{2}-\d{2}$/.test(String(val || ''));
+    var shown = val ? (U.dshow(val) || val) : (auto ? (U.dshow(auto) || auto) : 'не выбрана');
+    var col = val ? 'var(--t1)' : (auto ? '#7db8ff' : 'var(--t3)');
+    var mn = o.min ? ' min="' + o.min + '"' : '';
+    var mx = o.max ? ' max="' + o.max + '"' : '';
+    /* после смены даты перерисовываем лист, если строка внутри листа */
+    var fire = function (v) { cb(v); try { if (U.shR) U.shR(); } catch (e) {} };
+    return '<div class="rw dt"><label>' + l + (auto && !val ? '<span class="aut">авто</span>' : '') + '</label>' +
+      '<span class="dv" style="color:' + col + '">' + esc(shown) + '</span>' +
+      (val ? '<button class="dx" type="button" aria-label="Очистить дату"' + U.on(function (e) { if (e) e.stopPropagation(); fire(''); }) + '>' + (typeof I === 'function' ? I('x', 13) : '×') + '</button>' : '') +
+      '<input class="dn" type="date" value="' + (isIso ? val : '') + '"' + mn + mx +
+      ' oninput="' + U.f(function (e, el) { fire(el.value); }) + '" onchange="' + U.f(function (e, el) { fire(el.value); }) + '">' +
+      '</div>';
+  });
+
+  /* ================= каретка в конец при входе в поле ================= */
+  var caretEl = null;
+  function isTextish(el) {
+    if (!el || !el.tagName) return false;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    return (el.getAttribute('type') || 'text').toLowerCase() === 'text';
+  }
+  function caretEnd(el) {
+    try {
+      var n = (el.value || '').length;
+      if (el.setSelectionRange) el.setSelectionRange(n, n);
+    } catch (e) {}
+  }
+  function caretApply(el) {
+    var run = function () { if (document.activeElement === el) caretEnd(el); };
+    if (window.requestAnimationFrame) window.requestAnimationFrame(run);
+    run();
+    setTimeout(run, 0);
+    setTimeout(run, 50);
+    setTimeout(run, 120);
+  }
+  document.addEventListener('focusin', function (e) {
+    var el = e.target;
+    if (!isTextish(el)) return;
+    if (caretEl === el) return;   /* уже в фокусе: повторное касание ставит курсор как обычно */
+    caretEl = el;
+    caretApply(el);
+  });
+  document.addEventListener('focusout', function (e) { if (caretEl === e.target) caretEl = null; });
 
   /* ================= счётчики IDB ================= */
   function countFiles() {
@@ -115,7 +182,7 @@
       var pages = 0;
       try { pages = Math.round(lsBytes() / 1024); } catch (e) {}
       var rows = [
-        ['Версия', 'Студия · сборка 5'],
+        ['Версия', 'Студия · сборка 6'],
         ['Объектов', objsN],
         ['Файлов в памяти', files < 0 ? 'недоступно' : files],
         ['Занято в хранилище', pages + ' КБ (лимит ~5 МБ)'],
@@ -153,6 +220,30 @@
     });
   }
   window.studioSelfCheck = selfCheck;
+
+  /* ================= скидка на работы в смете ================= */
+  window.U && (U.discBlock = function () {
+    var d = U.discPct ? U.discPct() : 0;
+    var S = U.estSums ? U.estSums() : null;
+    var h = U.sh('Скидка на работы', '<span class="cp">' + (d ? d + '%' : 'нет') + '</span>');
+    var chip = function (v, t) {
+      return '<button class="chip sm' + (d === v ? ' on' : ' lt2') + '" type="button"' + U.on(function () {
+        est().disc = v; touch(); U.R();
+      }) + '>' + t + '</button>';
+    };
+    h += '<div class="chips" style="margin-bottom:8px">' + chip(0, 'Нет') + chip(5, '5%') + chip(10, '10%') + '</div>';
+    h += '<div class="rw" style="background:var(--s1);border-radius:14px"><label>Другая, %</label>' +
+      '<input class="fi" id="dsc" value="' + (d && d !== 5 && d !== 10 ? d : '') + '" placeholder="0-20" enterkeyhint="done"' +
+      ' onkeydown="if(event.key===\'Enter\')this.blur()" onchange="' + U.f(function (e, el) {
+        var v = Math.round(num(el.value));
+        if (!(v >= 0)) v = 0;
+        if (v > 20) v = 20;
+        est().disc = v; touch(); U.R();
+      }) + '"></div>';
+    if (S && d) h += '<div class="cp" style="margin-top:8px">Скидка ' + d + '% на работы, кроме спецмонтажных: ' + U.money(S.discAmount) + ' из ' + U.money(S.fullNonSpec) + '</div>';
+    else if (S) h += '<div class="cp" style="margin-top:8px">Цены в смете — по прайсу, без скидки.</div>';
+    return h;
+  });
 
   /* ================= дубликат объекта ================= */
   function nextId() {
@@ -586,7 +677,7 @@
           h = h.slice(0, ed) + '<div class="ed rz">' + h.slice(ed + 16);
         }
       }
-      return h + '<div class="cp" style="text-align:center;margin:28px 0 8px;opacity:.45">сборка 5</div>';
+      return h + '<div class="cp" style="text-align:center;margin:28px 0 8px;opacity:.45">сборка 6</div>';
     };
     wrapped.__wrapped = true;
     U.S.home = wrapped;
