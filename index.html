@@ -1193,7 +1193,7 @@ d.forEach(function(g){var qn=null;if(b)qs(b).forEach(function(q){if(qt(b,q)===g.
 U.eg='room';
 U.S.est=function(){var R=estRows(),act=R.filter(function(x){return !x.off}),tot=0,nw=0,ne=0;act.forEach(function(x){tot+=x.sum;if(x.w===1)nw++;if(x.w===2)ne++});
 var h=U.nv('Объект')+'<div class="mt" style="margin-bottom:12px">Смета</div><div class="sum"><div class="l">Работы, предварительно</div><div class="s">'+U.money(tot)+'</div><div class="m2">'+act.length+' '+plur(act.length,'работа','работы','работ')+(ne?' · оценочных объемов '+ne:'')+(nw?' · без объема '+nw:'')+'<br>Материалы не входят. Условия прайса применяются отдельно.</div></div>'+U.discBlock();
-if(R.length){h+=U.seg([['room','По помещениям'],['sec','По разделам']],U.eg,function(v){U.eg=v;U.R()});var G={},GO=[];R.forEach(function(x){var g=U.eg==='room'?x.rn:x.sec;if(!G[g]){G[g]=[];GO.push(g)}G[g].push(x)});
+if(R.length){U.eg='room';var G={},GO=[];R.forEach(function(x){var g=x.rn;if(!G[g]){G[g]=[];GO.push(g)}G[g].push(x)});
 GO.forEach(function(g){var s=0;G[g].forEach(function(x){if(!x.off)s+=x.sum});h+=U.sh(esc(g),'<span style="color:var(--t1);font-weight:600">'+U.money(s)+'</span>')+U.grp(G[g].map(function(x){var b=x.x?['b-m','вручную']:x.w===2?['b-e','оценка']:x.w===1?['b-e','нужен объем']:x.mq||x.mp?['b-m','изменено']:['b-a','авто'];return U.row({t:'<span style="font-size:15px;line-height:20px;display:block;'+(x.off?'opacity:.4':'')+'">'+esc(x.name)+'</span>',s:(x.w===1?'':qf(x.qty)+' '+esc(x.unit)+' × '+U.money(x.price)+' '+(x.disc?('<span style="color:var(--t3);font-size:12px">прайс '+U.money(x.base)+'</span> '):''))+'<span class="bdg '+b[0]+'">'+b[1]+'</span>'+(U.eg==='sec'?' '+esc(x.rn):''),wrap:1,noch:1,v:'<b style="color:var(--t1);font-weight:600">'+(x.off?'выкл':x.w===1?'-':U.money(x.sum))+'</b>',fn:function(){U.go('erow',x.k)}})}).join(''))})}
 else h+='<div class="empty"><b>Работ пока нет</b>Выберите материалы в решениях: работы из прайса предложатся сами. Или добавьте вручную.</div>';
 return h+'<div style="height:16px"></div>'+U.grp(U.row({ic:'pl',col:'var(--ac)',t:'<span style="color:var(--ac2)">Добавить работу из прайса</span>',noch:1,fn:U.addWork}))+'<div class="cp" style="margin-top:10px">Метка показывает, откуда строка: предложена по решению, объем оценен по площади или добавлена вручную.</div>'};
@@ -2036,7 +2036,7 @@ try{U.R()}catch(e){}
 <script>
 /* ===== Итерация 13.11: анимация, помещения+обмеры, техника, электрика списком, анкета 4 темы, прайс, загрузка фото ===== */
 (function(){var css=document.createElement('style');css.textContent=[
-'.sht .grp.pkl{max-height:236px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}',
+'.sht .grp.pkl{max-height:none;overflow:visible}',
 '.dmg label.cf input{color:#7fe0a0}',
 '.tci{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tci>div{background:var(--s1);border-radius:14px;padding:11px 12px;min-height:66px}.tci b{display:block;font-size:15px;font-weight:600;line-height:19px}.tci span{display:block;font-size:13px;color:var(--t2);margin-top:4px;line-height:16px}',
 '.tci .on2{background:rgba(10,132,255,.16)}.tci .on2 span{color:#7db8ff}.tci .no2 span{color:var(--t3)}'
