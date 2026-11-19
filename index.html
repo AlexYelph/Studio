@@ -386,7 +386,7 @@ if(DEF[q[0]])return {s:DEF[q[0]].slice(),auto:false};
 return null}
 function stat(r){var rem=0,au=0,tot=0;qs(r).forEach(function(q){if(q[0]==='__typ'||isOpt(r,q))return;tot++;var e=eff(r,q);if(!e){if(stOf(r,q)!=='no')rem++}else if(e.auto)au++});return {rem:rem,au:au,tot:tot}}
 function baseEmpty(r){return qs(r).every(function(q){return !eff(r,q)})}
-function saveObj(){if(!curObj)return;var rem=0,tot=0;try{realRooms().forEach(function(r){var z=stat(r);rem+=z.rem;tot+=z.tot})}catch(x){}curObj.rem=rem;curObj.tot=tot;curObj.S={rooms:rooms,uid:uid,curId:curId,ans:ans,er:er,cm:cm,nt:nt,st:st,xa:xa}}
+function saveObj(){if(!curObj)return;if(objs.indexOf(curObj)<0)objs.push(curObj);var rem=0,tot=0;try{realRooms().forEach(function(r){var z=stat(r);rem+=z.rem;tot+=z.tot})}catch(x){}curObj.rem=rem;curObj.tot=tot;curObj.S={rooms:rooms,uid:uid,curId:curId,ans:ans,er:er,cm:cm,nt:nt,st:st,xa:xa}}
 /* ===== хранение ===== */
 var store={db:null,uid:null,lastSaved:{},dirty:{},timer:null,busy:false,state:'local',loaded:false};
 var LSK='checklist_resheniy_objs_v1';
@@ -411,7 +411,14 @@ async function delStored(n){delete store.dirty[n];delete store.lastSaved[n];lsSa
 function fromJson(d){return {ts:d.ts||0,n:d.n,kind:d.kind||'',budget:d.budget||'',start:d.start||'',met:d.met||'',area:d.area||'',addr:d.addr||'',name:d.name||'',phone:d.phone||'',mail:d.mail||'',rem:d.rem||0,tot:d.tot||0,S:d.S}}
 function sortObjs(){objs.sort(function(a,b){return (parseInt(a.n,10)||0)-(parseInt(b.n,10)||0)})}
 async function initStore(){
-var loc=lsLoad();if(loc.length){objs=loc.map(fromJson);sortObjs();loc.forEach(function(d){store.lastSaved[d.n]=JSON.stringify(d)});if(view==='start')render()}
+var loc=lsLoad();if(loc.length){
+ if(!objs.length){objs=loc.map(fromJson);sortObjs()}
+ else{
+  /* повторный вызов (таймаут облака, возврат в приложение) не должен подменять объекты:
+     curObj остался бы в стороне от objs, и правки перестали бы попадать в сохранение */
+  var byN={};objs.forEach(function(o){byN[String(o.n)]=o});
+  loc.map(fromJson).forEach(function(d){if(!byN[String(d.n)])objs.push(d)});sortObjs()}
+ loc.forEach(function(d){store.lastSaved[d.n]=JSON.stringify(d)});if(view==='start')render()}
 try{
 var timer=new Promise(function(res){setTimeout(function(){res('timeout')},10000)});
 var work=(async function(){
@@ -2129,7 +2136,7 @@ var Ctx=function(pg){var c={font:'400 21px serif',fillStyle:'#000',strokeStyle:'
 var fs=function(){var m=String(c.font).match(/(\d+)px/),b=/(^|\s)(bold|[6-9]00)(\s|$)/.test(c.font);return [m?+m[1]:21,b]};
 c.measureText=function(t){var f=fs(),w=0;segs(t,f[1]).forEach(function(s){w+=wid(s[0],s[1],f[0])});return {width:w}};
 c.fillText=function(t,x,y,mw){var f=fs(),sz=f[0],S=segs(t,f[1]),w=0;S.forEach(function(s){w+=wid(s[0],s[1],sz)});var sc=mw&&w>mw?mw/w:1;w*=sc;var ax=c.textAlign==='right'?x-w:(c.textAlign==='center'?x-w/2:x);var by=c.textBaseline==='top'?y+F.r.asc*sz/1000:y;var col=hex(c.fillStyle);
-S.forEach(function(s){var fm=F[s[1]?'b':'r'].m,hx='';for(var i=0;i<s[0].length;i++){var g=fm[s[0][i]]||fm['?'];hx+=('000'+g[0].toString(16)).slice(-4)}pg.ops.push('BT /'+(s[1]?'F2':'F1')+' '+f3(sz*K)+' Tf '+col.map(f3).join(' ')+' rg '+(sc!==1?f3(sc*100)+' Tz ':'')+'1 0 0 1 '+f3(ax*K)+' '+f3((H-by)*K)+' Tm <'+hx+'> Tj ET');s[1]?F.b.u=1:F.r.u=1;ax+=wid(s[0],s[1],sz)*sc})};
+S.forEach(function(s){var fm=F[s[1]?'b':'r'].m,hx='';for(var i=0;i<s[0].length;i++){var g=fm[s[0][i]]||fm['?'];hx+=('000'+g[0].toString(16)).slice(-4)}pg.ops.push('BT /'+(s[1]?'F2':'F1')+' '+f3(sz*K)+' Tf '+col.map(f3).join(' ')+' rg '+f3(sc*100)+' Tz '+'1 0 0 1 '+f3(ax*K)+' '+f3((H-by)*K)+' Tm <'+hx+'> Tj ET');s[1]?F.b.u=1:F.r.u=1;ax+=wid(s[0],s[1],sz)*sc})};
 c.beginPath=function(){c._p=[]};c.moveTo=function(x,y){c._p.push(f3(x*K)+' '+f3((H-y)*K)+' m')};c.lineTo=function(x,y){c._p.push(f3(x*K)+' '+f3((H-y)*K)+' l')};
 c.stroke=function(){if(!c._p.length)return;pg.ops.push(hex(c.strokeStyle).map(f3).join(' ')+' RG '+f3(c.lineWidth*K)+' w '+c._p.join(' ')+' S')};
 c.strokeRect=function(x,y,w,h){pg.ops.push(hex(c.strokeStyle).map(f3).join(' ')+' RG '+f3(c.lineWidth*K)+' w '+f3(x*K)+' '+f3((H-y-h)*K)+' '+f3(w*K)+' '+f3(h*K)+' re S')};
@@ -2168,6 +2175,8 @@ U.cu=function(){nt.cu=nt.cu||{};return nt.cu};
 U.contr=function(){var L=U.contrs(),id=U.cu().contr||L[0].id;return L.filter(function(c){return c.id===id})[0]||L[0]};
 U.MON=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 U.dfmt=function(s){if(!s)return '';var m=String(s).match(/(\d{4})-(\d{2})-(\d{2})/);if(!m)return s;return '«'+m[3]+'» '+U.MON[+m[2]-1]+' '+m[1]+' г.'};
+/* дата словами: 19 ноября 2026 г. / 19 ноября 2026г. (tight) */
+U.dfull=function(s,tight){if(!s)return '';var m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!m)return String(s);return (+m[3])+' '+U.MON[+m[2]-1]+' '+m[1]+(tight?'г.':' г.')};
 U.today=function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 /* сумма прописью */
 U.words=function(n){n=Math.floor(Math.abs(n));if(!n)return 'ноль';var u=['','один','два','три','четыре','пять','шесть','семь','восемь','девять'],uf=['','одна','две','три','четыре','пять','шесть','семь','восемь','девять'],t=['десять','одиннадцать','двенадцать','тринадцать','четырнадцать','пятнадцать','шестнадцать','семнадцать','восемнадцать','девятнадцать'],d=['','','двадцать','тридцать','сорок','пятьдесят','шестьдесят','семьдесят','восемьдесят','девяносто'],h=['','сто','двести','триста','четыреста','пятьсот','шестьсот','семьсот','восемьсот','девятьсот'];
@@ -2177,13 +2186,13 @@ U.rub=function(n){n=Math.round(n||0);var w=U.words(n),pl=function(x){x%=100;if(x
 U.round1000=function(x){return Math.round((x||0)/1000)*1000};
 U.numStr=function(n){return String(Math.round(n||0)).replace(/\B(?=(\d{3})+(?!\d))/g,' ')};
 U.rubPl=function(n){n=Math.abs(Math.round(n||0))%100;if(n>10&&n<20)return 'рублей';n=n%10;return n===1?'рубль':(n>=2&&n<=4?'рубля':'рублей')};
-U.fmtRub=function(n){n=Math.round(n||0);return U.numStr(n)+' ('+U.words(n)+') '+U.rubPl(n)};
+U.fmtRub=function(n){n=Math.round(n||0);return U.numStr(n)+' руб. ('+U.words(n)+' '+U.rubPl(n)+' 00 копеек)'};
 U.pctGen=function(n){n=Math.round(n);var g=['','одного','двух','трех','четырех','пяти','шести','семи','восьми','девяти','десяти','одиннадцати','двенадцати','тринадцати','четырнадцати','пятнадцати','шестнадцати','семнадцати','восемнадцати','девятнадцати','двадцати'];if(!(n>=1&&n<=20))return '';return g[n]+(n===1?' процента':' процентов')};
 U.discPct=function(){try{var e=est(),v=num(e&&e.disc);return isFinite(v)?Math.max(0,Math.min(20,Math.round(v))):0}catch(x){return 0}};
 U.estSums=function(){var R=[];try{R=estRows().filter(function(x){return !x.off})}catch(e){}
 var full=0,net=0,spec=0,netSpec=0;
 R.forEach(function(x){var b=x.mp?x.price:(x.base!=null?x.base:x.price),f=x.qty*b,n=x.sum;full+=f;net+=n;if(x.spec){spec+=f;netSpec+=n}});
-return {full:full,spec:spec,fullNonSpec:full-spec,net:net,netNonSpec:net-netSpec,discAmount:(full-spec)-(net-netSpec),disc:U.discPct()}};
+return {full:full,spec:spec,fullNonSpec:full-spec,net:net,netNonSpec:net-netSpec,discAmount:Math.round((full-spec)-(net-netSpec)),disc:U.discPct()}};
 U.worksSum=function(){var t=0;try{estRows().forEach(function(x){if(!x.off)t+=x.sum})}catch(e){}return t};
 U.dvals=function(){var c=U.cu(),k=U.contr(),R=realRooms(),sf=0;R.forEach(function(r){sf+=num(r.area)});
  var s=U.worksSum(),ES=U.estSums(),nz=function(v){return v!=null&&String(v).trim()!==''&&isFinite(num(v))?num(v):null};
@@ -2192,35 +2201,44 @@ U.dvals=function(){var c=U.cu(),k=U.contr(),R=realRooms(),sf=0;R.forEach(functio
  var S=U.fmtRub(base),S5=U.fmtRub(adv),S3=U.fmtRub(ret),DFULL=U.fmtRub(ES.full);
 var f=function(v,n){return v?v:Array((n||14)+1).join('_')};
 var num0=c.num||(U.myInit()+'-'+(curObj?curObj.n:''));
-return {NUM:num0,DATE:c.date?U.dfmt(c.date):'«___» ____________ 20__ г.',FIO:f(c.fio||(curObj&&curObj.name),40),AREA:f(c.area||(sf?qf(sf):(curObj&&curObj.area)),10),ADDR:f(c.addr||(curObj&&curObj.addr),40),ROOMS:f(c.rooms||R.map(function(r){return r.name}).join(', '),30),
-SUM:base?S:f('',20)+' руб.',SUMR:base?S:f('',14)+' рублей',SUM5:adv?S5:f('',14),SUM3:ret?S3:f('',14),START:c.start?U.dfmt(c.start):f('',16),DAYS:f(c.days,8),SUMFULL:ES.full?DFULL:f('',16),DISC:ES.disc>0?(ES.disc+'%'+(U.pctGen(ES.disc)?' ('+U.pctGen(ES.disc)+')':'')+', что составляет '+U.fmtRub(ES.discAmount)):f('',12),
+return {NUM:num0,DATE:c.date?U.dfull(c.date):'«___» ____________ 20__ г.',FIO:f(c.fio||(curObj&&curObj.name),40),AREA:f(c.area||(sf?qf(sf):(curObj&&curObj.area)),10),ADDR:f(c.addr||(curObj&&curObj.addr),40),ROOMS:f(c.rooms||R.map(function(r){return r.name}).join(', '),30),
+SUM:base?S:f('',20)+' руб.',SUMR:base?S:f('',14)+' рублей',SUM5:adv?S5:f('',14),SUM3:ret?S3:f('',14),START:c.start?U.dfull(c.start):f('',16),DAYS:f(c.days,8),SUMFULL:ES.full?DFULL:f('',16),DISC:ES.disc>0?(ES.disc+'%'+(U.pctGen(ES.disc)?' ('+U.pctGen(ES.disc)+')':'')+', что составляет '+U.fmtRub(ES.discAmount)):f('',12),
 C_NAME:k.name,C_REP:k.rep||f('',30),C_SIGN:k.sign||f('',14)}};
 U.B=function(v){v=String(v==null?'':v);if(!v)return v;if(v.length<=22)return '\u0001'+v.replace(/ /g,'\u00a0')+'\u0002';return '\u0001'+v.split(' ').join('\u0002 \u0001')+'\u0002'};
-U.fill=function(s,V){return String(s).replace(/\{([A-Z_0-9]+)\}/g,function(m,k){return V[k]!=null?(/^C_/.test(k)?V[k]:U.B(V[k])):m})};
+U.fill=function(s,V){return String(s).replace(/\{([A-Z_0-9]+)\}/g,function(m,k){return V[k]!=null?(k==='C_NAME'?U.B(V[k]):V[k]):m})};
 
 /* --- PDF документов: страницы A4, шрифт с засечками, выравнивание по ширине --- */
 U.dDoc=function(){var D=U.vDoc(),W=PDFK.W,H=PDFK.H,M=96,FS=21,LH=27,FF='"Times New Roman",Times,"Liberation Serif",serif';D.M2=M;
 D.f=function(sz,wt,it){D.c.fillStyle='#000';D.c.font=(it?'italic ':'')+(wt||400)+' '+(sz||FS)+'px '+FF};
 D.need2=function(h){if(!D.pages.length||D.y+h>H-170)D.np2()};
 D.np2=function(){D.np(M);D.pages[D.pages.length-1].doc=D.cur;D.f(21,400)};
-D.lines=function(t,mw,sz,wt){D.f(sz,wt);var out=[],ws=String(t).split(/\s+/),l='';ws.forEach(function(w){var tt=l?l+' '+w:w;if(D.c.measureText(tt).width>mw&&l){out.push(l);l=w}else l=tt});if(l)out.push(l);return out};
+D.lines=function(t,mw,sz,wt){D.f(sz,wt);var out=[],ws=String(t).replace(/\n/g,' ').split(' '),l='';ws.forEach(function(w){var tt=l?l+' '+w:w;if(D.c.measureText(tt).width>mw&&l){out.push(l);l=w}else l=tt});if(l)out.push(l);return out};
 D.par=function(t,o){o=o||{};var sz=o.sz||FS,lh=o.lh||Math.round(sz*1.3),x=M+(o.ind||0),mw=W-M-x,L=D.lines(t,mw,sz,o.wt);L.forEach(function(l,i){D.need2(lh);D.f(sz,o.wt);D.c.fillStyle='#000';if(o.al==='c'){D.c.textAlign='center';D.c.fillText(l,W/2,D.y);D.c.textAlign='left'}else if(o.al==='r'){D.c.textAlign='right';D.c.fillText(l,W-M,D.y);D.c.textAlign='left'}else if(i<L.length-1&&!o.nj){var ws=l.split(' '),tw=0;ws.forEach(function(w){tw+=D.c.measureText(w).width});var gap=ws.length>1?(mw-tw)/(ws.length-1):0,cx=x+(i===0&&o.fi?0:0);ws.forEach(function(w){D.c.fillText(w,cx,D.y);cx+=D.c.measureText(w).width+gap})}else D.c.fillText(l,x,D.y);D.y+=lh});D.y+=o.after!=null?o.after:4};
 D.hot=function(k){if(k.logo!==0&&U.LOGO&&U.logoIm&&U.logoIm.complete){D.c.drawImage(U.logoIm,M,D.y-30,110,110)}if(!k.hot){D.y+=90;return}D.f(19,400);D.c.fillStyle='#000';D.c.textAlign='right';D.c.fillText('Телефон горячей линии по работе',W-M,D.y);D.c.fillText('с клиентами: '+k.hot,W-M,D.y+24);D.c.textAlign='left';D.y+=(U.logoIm?100:60)};
 D.city=function(date){D.need2(40);D.f(FS,700);D.c.fillText('г. Москва',M,D.y);D.c.textAlign='right';D.c.fillText(date,W-M,D.y);D.c.textAlign='left';D.y+=46};
-D.party=function(V){var c=U.cu(),f=function(v,n){return U.B(v||Array((n||14)+1).join('_'))};V=Object.assign({},V,{FIO:U.B(V.FIO)});if(c.kind==='org'){D.par(f(c.org,30)+', ОГРН '+f(c.ogrn,15)+', ИНН '+f(c.inn,12)+', КПП '+f(c.kpp,9)+', юридический адрес: '+f(c.jaddr,40)+', в лице '+f(c.orep,30)+',')}else D.par((D.partyPre||'')+V.FIO+', серия и номер паспорта '+f(c.pser,12)+', выдан '+f(c.pwho,40)+', дата выдачи '+U.dt(f(c.pdate,12))+', код подразделения '+f(c.pcode,8)+', адрес регистрации '+f(c.preg,40)+',')};
+D.party=function(V){var c=U.cu(),f=function(v,n){return U.B(v||Array((n||14)+1).join('_'))};V=Object.assign({},V,{FIO:U.B(V.FIO)});if(c.kind==='org'){D.par(f(c.org,30)+', ОГРН '+f(c.ogrn,15)+', ИНН '+f(c.inn,12)+', КПП '+f(c.kpp,9)+', юридический адрес: '+f(c.jaddr,40)+', в лице '+f(c.orep,30)+',')}else D.par((D.partyPre||'')+V.FIO+', серия и номер паспорта '+f(c.pser,12)+', выдан '+f(c.pwho,40)+', дата выдачи '+U.dfull(f(c.pdate,12),1)+', код подразделения '+f(c.pcode,8)+', адрес регистрации '+f(c.preg,40)+',')};
 D.sigs=function(V,k){D.need2(110);D.y+=24;D.f(FS,400);D.c.fillText('Подрядчик: '+V.C_SIGN,M,D.y);D.c.fillText('Заказчик: ______________________',W/2+40,D.y);D.y+=46;D.c.fillText('_____________________________',M,D.y);D.c.fillText('_____________________________',W/2+40,D.y);D.y+=40};
 D.sigRight=function(lines){var c=D.c;D.f(21,400);D.need2(lines.length*26+40);var w=0;lines.forEach(function(t){w=Math.max(w,c.measureText(String(t)).width)});var x=W-M-w;lines.forEach(function(t,i){c.fillText(String(t),x,D.y+i*26)});var yy=D.y+lines.length*26+6;c.beginPath();c.moveTo(x,yy);c.lineTo(W-M,yy);c.stroke();D.y=yy+26};
 D.pairSigns=function(l1,n1,l2,n2){var c=D.c;D.f(21,400);D.need2(130);var w2=Math.max(c.measureText(l2).width,c.measureText(n2||'').width,220),w1=Math.max(c.measureText(l1).width,c.measureText(n1||'').width,220);w1=Math.min(w1,(W-2*M)-w2-40);var xR=W-M-w2,yy=D.y;c.fillText(l1,M,yy);c.fillText(l2,xR,yy);yy+=44;c.beginPath();c.moveTo(M,yy);c.lineTo(M+w1,yy);c.stroke();c.beginPath();c.moveTo(xR,yy);c.lineTo(W-M,yy);c.stroke();yy+=24;c.fillText(n1||'',M,yy);c.fillText(n2||'',xR,yy);D.y=yy+40};
+D.req=function(V){var k=U.contr(),c=U.cu(),cw=(W-2*M)/2,lh=27,f=function(v,n){return v||Array((n||18)+1).join('_')};
+var lc=(k.req||'').split('\n'),rc=['Адрес: '+f(c.preg,30),'Паспортные данные','Серия и Номер: '+f(c.pser,14),'Выдан: '+f(c.pwho,26),'Дата выдачи: '+U.dfull(f(c.pdate,14),1),'WhatsApp (мессенджер): '+f(c.wa,14),'Telegram (мессенджер): '+f(c.tg,14),'Номер телефона: '+f(c.phone||(curObj&&curObj.phone),14),'E-mail: '+f(c.mail||(curObj&&curObj.mail),20)];
+var hh=Math.max(lc.length+3,rc.length+3)*lh+30;D.need2(hh);var y0=D.y;
+D.c.strokeStyle='#000';D.c.lineWidth=2;D.c.strokeRect(M,y0,W-2*M,hh);D.c.beginPath();D.c.moveTo(M+cw,y0);D.c.lineTo(M+cw,y0+hh);D.c.stroke();
+D.f(21,400);D.c.fillText('Подрядчик',M+12,y0+12);D.c.fillText('Заказчик',M+cw+12,y0+12);
+lc.forEach(function(l,i){D.c.fillText(l,M+12,y0+44+i*lh,cw-24)});rc.forEach(function(l,i){D.c.fillText(l,M+cw+12,y0+44+i*lh,cw-24)});
+D.c.fillText('_____________ '+V.C_SIGN,M+12,y0+hh-36);D.c.fillText('_____________ '+(c.fio||(curObj&&curObj.name)||''),M+cw+12,y0+hh-36);D.y=y0+hh+20};
 D.title=function(a,b){D.par(a,{al:'c',wt:700,sz:23,after:2});if(b)D.par(b,{al:'c',wt:700,after:10})};
 D.right=function(t){D.par(t,{al:'r',sz:20,after:6})};
-D.body=function(P,V,hd){P.forEach(function(p){var t=U.fill(p,V);if(/^\d+\. [А-ЯЁ][^.]{2,60}\.$/.test(t)&&t.length<70){D.y+=8;D.par(t,{al:'c',wt:700,after:8})}else D.par(t)})};
-D.foot2=function(V){var FT={dog:1,a3:1,a4:1,a5:1,sogl:1,skid:1,road:1},fio=(U.cu().fio||(curObj&&curObj.name)||'');
-D.pages.forEach(function(pg){if(!FT[pg.doc])return;var c=pg.getContext('2d');c.font='400 20px serif';c.fillStyle='#000';c.textBaseline='top';c.textAlign='left';
+D.body=function(P,V,hd){P.forEach(function(p){var t=U.fill(p,V);if(/^\d+\. [А-ЯЁ][^.]{2,60}\.$/.test(t)&&t.length<70){D.y+=8;D.par(t,{al:'c',wt:700,after:8})}else D.par(t,{after:10})})};
+D.footRow=function(c,y,V){var fio=(U.cu().fio||(curObj&&curObj.name)||'');c.font='400 20px serif';c.fillStyle='#000';c.textBaseline='top';c.textAlign='left';
 var L1='Подрядчик: '+V.C_SIGN,L2='Заказчик: '+(fio||'______________________');
-var w1=Math.max(c.measureText(L1).width,190),w2=Math.max(c.measureText(L2).width,190),xR=W-M-w2;
-c.fillText(L1,M,H-128);c.fillText(L2,xR,H-128);
-c.beginPath();c.moveTo(M,H-84);c.lineTo(M+w1,H-84);c.stroke();
-c.beginPath();c.moveTo(xR,H-84);c.lineTo(W-M,H-84);c.stroke()})};
+var w1=Math.max(c.measureText(L1).width,190),w2=Math.max(c.measureText(L2).width,190),xR=W-M-w2-24;
+c.fillText(L1,M,y);c.fillText(L2,xR,y);
+c.beginPath();c.moveTo(M,y+30);c.lineTo(M+w1,y+30);c.stroke();
+c.beginPath();c.moveTo(xR,y+30);c.lineTo(W-M,y+30);c.stroke()};
+D.footHere=function(V){D.footRow(D.c,D.y+6,V);D.y+=48};
+D.foot2=function(V){var FT={dog:1,a4:1,a5:1,sogl:1,skid:1,road:1};
+D.pages.forEach(function(pg){if(FT[pg.doc])D.footRow(pg.getContext('2d'),H-112,V)})};
 return D};
 U.DOCS=[['dog','Договор подряда',1],['a1','Приложение № 1: Смета',1],['a2','Приложение № 2: Прейскурант на виды работ',1],['a3','Приложение № 3: Акт приема-передачи выполненных работ',1],['a4','Приложение № 4: Письмо - отзыв',1],['a5','Приложение № 5: Акт приема-передачи Объекта',1],['sogl','Соглашение об обеспечении оплаты',1],['skid','Доп. соглашение о скидке',0],['road','Дорожная карта и порядок оплаты',1],['a6','Приложение № 6: Соглашение о сроке',1],['a7','Приложение № 7: Согласие на обработку ПД',1]];
 U.dSel=function(id){var c=U.cu();c.pk=c.pk||{};if(c.pk[id]==null){if(id==='skid')return U.discPct()>0;var z=U.DOCS.filter(function(d){return d[0]===id})[0];return !!(z&&z[2])}return !!c.pk[id]};
@@ -2228,12 +2246,8 @@ U.docPdf=function(){var V=U.dvals(),k=U.contr(),D=U.dDoc(),M=D.M2,W=PDFK.W,T2=U.
 var start=function(){D.np2()};
 U.DOCS.forEach(function(z){if(!U.dSel(z[0]))return;var id=z[0];D.cur=id;start();
 if(id==='dog'){D.hot(k);D.title('ДОГОВОР ПОДРЯДА № '+V.NUM+' от '+V.DATE);D.city(V.DATE);D.party(V);D.body(T2.dog,V);
-D.need2(120);D.y+=10;D.par('10. Реквизиты и подписи Сторон:',{al:'c',wt:700,after:10});var y0=D.y,cw=(W-2*M)/2,lh=27,lc=(k.req||'').split('\n'),c=U.cu(),f=function(v,n){return v||Array((n||18)+1).join('_')};
-var rc=['Адрес: '+f(c.preg,30),'Паспортные данные','Серия и Номер: '+f(c.pser,14),'Выдан: '+f(c.pwho,26),'Дата выдачи: '+U.dt(f(c.pdate,14)),'WhatsApp (мессенджер): '+f(c.wa,14),'Telegram (мессенджер): '+f(c.tg,14),'Номер телефона: '+f(c.phone||(curObj&&curObj.phone),14),'E-mail: '+f(c.mail||(curObj&&curObj.mail),20)];
-var hh=Math.max(lc.length+3,rc.length+3)*lh+30;D.need2(hh);y0=D.y;D.c.strokeStyle='#000';D.c.lineWidth=2;D.c.strokeRect(M,y0,W-2*M,hh);D.c.beginPath();D.c.moveTo(M+cw,y0);D.c.lineTo(M+cw,y0+hh);D.c.stroke();
-D.f(21,700);D.c.fillText('Подрядчик',M+12,y0+12);D.c.fillText('Заказчик',M+cw+12,y0+12);D.f(21,400);lc.forEach(function(l,i){D.c.fillText(l,M+12,y0+44+i*lh,cw-24)});rc.forEach(function(l,i){D.c.fillText(l,M+cw+12,y0+44+i*lh,cw-24)});
-D.c.fillText('_____________ '+V.C_SIGN,M+12,y0+hh-36);D.c.fillText('_____________ '+(c.fio||(curObj&&curObj.name)||''),M+cw+12,y0+hh-36);D.y=y0+hh+20;
-D.par('ПРИЛОЖЕНИЯ:',{wt:700,after:4});['1. Приложение № 1: Смета.','2. Приложение № 2: Прейскурант на виды работ','3. Приложение № 3: Акт приема-передачи выполненных работ (этапа работ).','4. Приложение № 4: Письмо - отзыв руководству о выполненной работе','5. Приложение № 5: Акт приема передачи Объекта','6. Приложение № 6: Соглашении о сроке выполнения работ','7. Приложение № 7: Соглашение на передачу и обработку персональных данных'].forEach(function(l){D.par(l,{nj:1,after:0})})}
+D.need2(120);D.y+=10;D.par('10. Реквизиты и подписи Сторон:',{al:'c',wt:700,after:10});D.req(V);
+D.par('ПРИЛОЖЕНИЯ:',{after:4});['1. Приложение № 1: Смета.','2. Приложение № 2: Прейскурант на виды работ','3. Приложение № 3: Акт приема-передачи выполненных работ (этапа работ).','4. Приложение № 4: Письмо - отзыв руководству о выполненной работе','5. Приложение № 5: Акт приема передачи Объекта','6. Приложение № 6: Соглашении о сроке выполнения работ','7. Приложение № 7: Соглашение на передачу и обработку персональных данных'].forEach(function(l){D.par(l,{nj:1,after:0})})}
 else if(id==='a1'){D.right('Приложение № 1 к '+ND);D.title('СМЕТА № 1','на производство работ');D.par('Адрес объекта: '+V.ADDR,{nj:1});var R=[];try{R=estRows().filter(function(x){return !x.off})}catch(e){}var G={},GO=[],tot=0;R.forEach(function(x){if(!G[x.rn]){G[x.rn]=[];GO.push(x.rn)}G[x.rn].push(x);tot+=x.sum});
 var cols=[M,M+560,M+620,M+800,W-M];var row=function(a,b,c2,d,e,wt){var L=D.lines(a,540,20,wt);var hh=L.length*25+8;D.need2(hh);D.f(20,wt);L.forEach(function(l,i){D.c.fillText(l,cols[0],D.y+i*25)});D.c.fillText(b,cols[1],D.y);D.c.textAlign='right';D.c.fillText(c2,cols[3]-12,D.y);D.c.fillText(d,cols[4]-150,D.y);D.c.fillText(e,cols[4],D.y);D.c.textAlign='left';D.y+=hh;D.c.strokeStyle='#ccc';D.c.lineWidth=1;D.c.beginPath();D.c.moveTo(M,D.y-4);D.c.lineTo(W-M,D.y-4);D.c.stroke()};
 D.c.strokeStyle='#ccc';row('Наименование работ','Ед.','Кол-во','Цена, руб.','Сумма, руб.',700);GO.forEach(function(g){var s=0;G[g].forEach(function(x){s+=x.sum});D.y+=6;row(g,'','','',U.mn(s),700);G[g].forEach(function(x){row(x.code?x.code+' '+x.name:x.name,x.unit||'',x.w===1?'-':qf(x.qty),U.mn(x.price),x.w===1?'-':U.mn(x.sum))})});var ES=U.estSums();D.y+=10;row('Итого без скидки','','','',U.mn(ES.full),400);
@@ -2244,14 +2258,14 @@ P.forEach(function(p){if(p[1]!==cur){cur=p[1];gr='';D.need2(70);D.y+=10;D.f(21,7
 var PRTXT=(typeof PRN!=='undefined'&&PRN)?String(PRN):'';if(PRTXT){D.y+=14;D.need2(70);D.par('Условия',{wt:700,after:6});
 var PL=PRTXT.split('\n').filter(function(l){return l.trim()});
 PL.forEach(function(l,i){var last=i>=PL.length-2;D.par(l,{sz:19,nj:last,al:last?'c':'left',wt:last?700:400,after:last?2:1})})}}
-else if(id==='a3'){D.right('Приложение №3');D.title('АКТ','приема-передачи выполненных работ');D.par('по договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',after:10});D.city('«___» ____________ 20__ г.');D.party(V);D.body(T2.a3.slice(0,-3),V);
+else if(id==='a3'){D.right('Приложение №3');D.title('АКТ','приема-передачи выполненных работ');D.par('по договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',wt:700,after:10});D.city('«___» ____________ 20__ г.');D.party(V);D.body(T2.a3.slice(0,-3),V);
 for(var ai=0;ai<4;ai++)D.par('____________________________________________________________________________________________',{nj:1,after:6});
 D.y+=6;D.pairSigns('Работу сдал, от Подрядчика:',V.C_SIGN,'Работу принял, от Заказчика:',(U.cu().fio||(curObj&&curObj.name)||''));
-D.need2(60);D.par('Форма акта сторонами согласована:',{wt:700,nj:1})}
-else if(id==='a4'){D.right('Приложение №4 к настоящему договору');D.title('ПИСЬМО – ОТЗЫВ РУКОВОДСТВУ О ВЫПОЛНЕННОЙ РАБОТЕ.');D.par('по договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',after:10});D.city('«___» ____________ 20__ г.');T2.a4.forEach(function(t,i){D.par(t,{wt:i?400:400,nj:1});for(var j=0;j<(i?3:6);j++)D.par('____________________________________________________________________________________________',{nj:1,after:2})})}
-else if(id==='a5'){D.hot(k);D.right('Приложение №5');D.title('АКТ','приема передачи Объекта для выполнения работ');D.par('по Договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',after:10});D.city(V.DATE);D.party(V);D.body(T2.a5,V)}
-else if(id==='sogl'){D.hot(k);D.title('СОГЛАШЕНИЕ');D.par('к Договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',after:10});D.city(V.DATE);D.party(V);D.body(T2.sogl,V)}
-else if(id==='skid'){D.hot(k);D.title('ДОПОЛНИТЕЛЬНОЕ СОГЛАШЕНИЕ О ПРЕДОСТАВЛЕНИИ СКИДКИ №1');D.par('к Договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',after:10});D.city(V.DATE);D.party(V);D.body(T2.skid,V)}
+D.need2(60);D.par('Форма акта сторонами согласована:',{wt:700,nj:1,after:16});D.footHere(V)}
+else if(id==='a4'){D.right('Приложение №4 к настоящему договору');D.title('ПИСЬМО – ОТЗЫВ РУКОВОДСТВУ О ВЫПОЛНЕННОЙ РАБОТЕ.');D.par('по договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',wt:700,after:10});D.city('«___» ____________ 20__ г.');T2.a4.forEach(function(t,i){D.par(t,{wt:i?400:400,nj:1});for(var j=0;j<(i?3:6);j++)D.par('____________________________________________________________________________________________',{nj:1,after:2})})}
+else if(id==='a5'){D.hot(k);D.right('Приложение №5');D.title('АКТ','приема передачи Объекта для выполнения работ');D.par('по Договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',wt:700,after:10});D.city('«___» ____________ 20__ г.');D.party(V);D.body(T2.a5,V)}
+else if(id==='sogl'){D.hot(k);D.title('СОГЛАШЕНИЕ');D.par('к Договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',wt:700,after:10});D.city(V.DATE);D.party(V);D.body(T2.sogl,V);D.y+=10;D.par('Реквизиты и подписи Сторон:',{al:'c',wt:700,after:10});D.req(V)}
+else if(id==='skid'){D.hot(k);D.title('ДОПОЛНИТЕЛЬНОЕ СОГЛАШЕНИЕ О ПРЕДОСТАВЛЕНИИ СКИДКИ №1');D.par('к Договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',wt:700,after:10});D.city(V.DATE);D.party(V);D.body(T2.skid,V)}
 else if(id==='road'){D.title('ДОРОЖНАЯ КАРТА И ПОРЯДОК ОПЛАТЫ ПО ДОГОВОРУ ПОДРЯДА');D.city(V.DATE);D.body(T2.road,V)}
 else if(id==='a6'){D.right('Приложение №6 к настоящему договору');D.title('СОГЛАШЕНИЕ','о сроке выполнения работ');D.par('по договору подряда № '+V.NUM+' от '+V.DATE,{al:'c',after:10});D.city(V.DATE);D.party(V);D.body(T2.a6,V)}
 else if(id==='a7'){D.hot(k);D.title('СОГЛАСИЕ','НА ПЕРЕДАЧУ И ОБРАБОТКУ ПЕРСОНАЛЬНЫХ ДАННЫХ');D.city(V.DATE);D.partyPre='Я, ';D.party(V);D.partyPre='';D.body(T2.a7,V);D.y+=24;var f7=(U.cu().fio||(curObj&&curObj.name)||'');D.sigRight(['Заказчик: '+(f7||'______________________')])}

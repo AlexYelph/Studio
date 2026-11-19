@@ -98,7 +98,7 @@
       '<span class="dv" style="color:' + col + '">' + esc(shown) + '</span>' +
       (val ? '<button class="dx" type="button" aria-label="Очистить дату"' + U.on(function (e) { if (e) e.stopPropagation(); fire(''); }) + '>' + (typeof I === 'function' ? I('x', 13) : '×') + '</button>' : '') +
       '<input class="dn" type="date" value="' + (isIso ? val : '') + '"' + mn + mx +
-      ' oninput="' + U.f(function (e, el) { fire(el.value); }) + '" onchange="' + U.f(function (e, el) { fire(el.value); }) + '">' +
+      ' onchange="' + U.f(function (e, el) { fire(el.value); }) + '">' +
       '</div>';
   });
 
