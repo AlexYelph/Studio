@@ -85,22 +85,8 @@
     var m = String(v == null ? '' : v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? (m[3] + '.' + m[2] + '.' + m[1]) : (v == null ? '' : String(v));
   });
-  window.U && (U.drow = function (l, val, cb, auto, o) {
-    o = o || {};
-    var isIso = /^\d{4}-\d{2}-\d{2}$/.test(String(val || ''));
-    var shown = val ? (U.dshow(val) || val) : (auto ? (U.dshow(auto) || auto) : 'не выбрана');
-    var col = val ? 'var(--t1)' : (auto ? '#7db8ff' : 'var(--t3)');
-    var mn = o.min ? ' min="' + o.min + '"' : '';
-    var mx = o.max ? ' max="' + o.max + '"' : '';
-    /* после смены даты перерисовываем лист, если строка внутри листа */
-    var fire = function (v) { cb(v); try { if (U.shR) U.shR(); } catch (e) {} };
-    return '<div class="rw dt"><label>' + l + (auto && !val ? '<span class="aut">авто</span>' : '') + '</label>' +
-      '<span class="dv" style="color:' + col + '">' + esc(shown) + '</span>' +
-      (val ? '<button class="dx" type="button" aria-label="Очистить дату"' + U.on(function (e) { if (e) e.stopPropagation(); fire(''); }) + '>' + (typeof I === 'function' ? I('x', 13) : '×') + '</button>' : '') +
-      '<input class="dn" type="date" value="' + (isIso ? val : '') + '"' + mn + mx +
-      ' onchange="' + U.f(function (e, el) { fire(el.value); }) + '">' +
-      '</div>';
-  });
+  /* U.drow не подменяем: в index.html есть колесо выбора даты (U.wheel).
+     Нативный input[type=date] на iOS отдавал change на каждом шаге и рвал лист. */
 
   /* ================= каретка в конец при входе в поле ================= */
   var caretEl = null;
