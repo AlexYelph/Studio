@@ -1,6 +1,6 @@
 /* Студия — офлайн-кэш.
    Меняйте VERSION при каждом обновлении приложения: старый кэш будет вычищен. */
-const VERSION = 'studio-7';
+const VERSION = 'studio-8';
 const SHELL = [
   './',
   './index.html',
