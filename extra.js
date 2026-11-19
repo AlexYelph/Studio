@@ -208,24 +208,46 @@
   window.studioSelfCheck = selfCheck;
 
   /* ================= скидка на работы в смете ================= */
+  /* колесо 0–20 в том же стиле, что выбор даты */
+  window.U && (U.discWheel = function () {
+    var cur = U.discPct ? U.discPct() : 0, vals = [];
+    for (var i = 0; i <= 20; i++) vals.push([i, i + ' %']);
+    var col = '<p class="e"></p><p class="e"></p>' + vals.map(function (x) {
+      return '<p data-v="' + x[0] + '">' + x[1] + '</p>';
+    }).join('') + '<p class="e"></p><p class="e"></p>';
+    U.sheet(function () {
+      return {
+        t: 'Скидка на работы',
+        b: '<div class="whl">' + '<div id="wds">' + col + '</div>' + '</div>' +
+           '<div class="cp" style="text-align:center;margin-top:4px">Скидка на работы, кроме спецмонтажных</div>',
+        f: '<button class="btn"' + U.on(function () {
+          var el = document.getElementById('wds');
+          var ps = el ? el.querySelectorAll('p[data-v]') : [];
+          var k = el ? Math.round(el.scrollTop / 40) : 0;
+          var v = ps.length ? +ps[Math.min(ps.length - 1, Math.max(0, k))].dataset.v : 0;
+          est().disc = v; touch(); U.closeS(); U.R();
+        }) + '>Готово</button>'
+      };
+    });
+    setTimeout(function () {
+      var el = document.getElementById('wds');
+      if (!el) return;
+      var ps = [].slice.call(el.querySelectorAll('p[data-v]'));
+      var k = ps.findIndex(function (p) { return +p.dataset.v === cur; });
+      if (k >= 0) el.scrollTop = k * 40;
+    }, 30);
+  });
+
   window.U && (U.discBlock = function () {
     var d = U.discPct ? U.discPct() : 0;
     var S = U.estSums ? U.estSums() : null;
     var h = U.sh('Скидка на работы', '<span class="cp">' + (d ? d + '%' : 'нет') + '</span>');
-    var chip = function (v, t) {
-      return '<button class="chip sm' + (d === v ? ' on' : ' lt2') + '" type="button"' + U.on(function () {
-        est().disc = v; touch(); U.R();
-      }) + '>' + t + '</button>';
-    };
-    h += '<div class="chips" style="margin-bottom:8px">' + chip(0, 'Нет') + chip(5, '5%') + chip(10, '10%') + '</div>';
-    h += '<div class="rw" style="background:var(--s1);border-radius:14px"><label>Другая, %</label>' +
-      '<input class="fi" id="dsc" value="' + (d && d !== 5 && d !== 10 ? d : '') + '" placeholder="0-20" enterkeyhint="done"' +
-      ' onkeydown="if(event.key===\'Enter\')this.blur()" onchange="' + U.f(function (e, el) {
-        var v = Math.round(num(el.value));
-        if (!(v >= 0)) v = 0;
-        if (v > 20) v = 20;
-        est().disc = v; touch(); U.R();
-      }) + '"></div>';
+    h += U.grp(U.row({
+      t: 'Скидка',
+      s: 'на работы, кроме спецмонтажных',
+      v: '<b style="color:var(--t1)">' + (d ? d + ' %' : 'нет') + '</b>',
+      fn: U.discWheel
+    }));
     if (S && d) h += '<div class="cp" style="margin-top:8px">Скидка ' + d + '% на работы, кроме спецмонтажных: ' + U.money(S.discAmount) + ' из ' + U.money(S.fullNonSpec) + '</div>';
     else if (S) h += '<div class="cp" style="margin-top:8px">Цены в смете — по прайсу, без скидки.</div>';
     return h;
