@@ -168,7 +168,7 @@
       var pages = 0;
       try { pages = Math.round(lsBytes() / 1024); } catch (e) {}
       var rows = [
-        ['Версия', 'Студия · сборка 6'],
+        ['Версия', 'Студия · сборка 10'],
         ['Объектов', objsN],
         ['Файлов в памяти', files < 0 ? 'недоступно' : files],
         ['Занято в хранилище', pages + ' КБ (лимит ~5 МБ)'],
@@ -685,7 +685,7 @@
           h = h.slice(0, ed) + '<div class="ed rz">' + h.slice(ed + 16);
         }
       }
-      return h + '<div class="cp" style="text-align:center;margin:28px 0 8px;opacity:.45">сборка 6</div>';
+      return h + '<div class="cp" style="text-align:center;margin:28px 0 8px;opacity:.45">сборка 10</div>';
     };
     wrapped.__wrapped = true;
     U.S.home = wrapped;

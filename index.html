@@ -2541,7 +2541,14 @@ try{U.R()}catch(e){}
   if(!('serviceWorker' in navigator))return;
   if(location.protocol!=='http:'&&location.protocol!=='https:')return;
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register('./sw.js').catch(function(){});
+    var hadCtrl=!!navigator.serviceWorker.controller,rel=0;
+    navigator.serviceWorker.addEventListener('controllerchange',function(){
+      if(hadCtrl&&!rel){rel=1;setTimeout(function(){location.reload()},150)}
+    });
+    navigator.serviceWorker.register('./sw.js').then(function(r){
+      try{r.update()}catch(e){}
+      setInterval(function(){try{r.update()}catch(e){}},60000);
+    }).catch(function(){});
   });
 })();
 </script>
